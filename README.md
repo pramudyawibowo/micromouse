@@ -426,21 +426,41 @@ Robot dapat dipantau dan dikendalikan melalui kabel USB Type-C virtual COM port 
 
 ### Prasyarat
 1. Terpasang [Visual Studio Code](https://code.visualstudio.com/) + Ekstensi [PlatformIO IDE](https://platformio.org/).
-2. Driver ST-Link V2 atau USB DFU WeAct Black Pill.
+2. Mikrokontroler WeAct Black Pill terhubung via kabel USB Type-C (USB DFU Bootloader) atau ST-Link V2.
+3. **Khusus Pengguna Linux**:
+   Agar user Linux dapat mengakses USB STM32 DFU dan serial monitor tanpa masalah izin (*permission denied*), jalankan skrip konfigurasi udev sekali:
+   ```bash
+   sudo ./scripts/setup_udev.sh
+   ```
 
 ### Kompilasi Proyek
-Buka terminal PlatformIO di direktori proyek dan jalankan:
+Buka terminal di direktori proyek dan jalankan:
 ```bash
 pio run
 ```
 *Hasil kompilasi tipikal:*
-- RAM: `~6.080 Bytes` (~4.6% dari 128 KB pada F411CE / ~9.3% pada F401CC)
-- Flash: `~76.664 Bytes` (~14.6% dari 512 KB pada F411CE / ~29.1% pada F401CC)
+- RAM: `~6.096 Bytes` (~4.7% dari 128 KB pada F411CE / ~9.3% pada F401CC)
+- Flash: `~79.080 Bytes` (~15.1% dari 512 KB pada F411CE / ~29.1% pada F401CC)
 
 ### Mengunggah Firmware (Upload)
-Hubungkan programmer ST-Link ke pin SWDIO, SWCLK, GND, 3V3 pada Black Pill:
+
+#### Metode 1: USB DFU Bootloader (Default - Tanpa ST-Link, Cukup Kabel Type-C)
+1. Hubungkan Black Pill ke komputer via kabel USB Type-C.
+2. Masuk ke **Mode DFU**:
+   - **Tahan tombol `BOOT0`**
+   - **Tekan dan lepas tombol `NRST` (Reset)**
+   - **Lepaskan tombol `BOOT0`**
+   *(Di Linux, dapat dipastikan dengan perintah `lsusb` yang menampilkan `0483:df11 STMicroelectronics STM Device in DFU Mode`)*
+3. Jalankan perintah upload (otomatis mendeteksi Linux/Windows dan alat upload):
+   ```bash
+   pio run -t upload
+   ```
+   *Skrip otomatis menggunakan `STM32CubeProgrammer CLI` atau fallback ke `dfu-util` serta langsung menjalankan program (`-s 0x08000000`).*
+
+#### Metode 2: ST-Link V2 (SWD Programmer)
+Hubungkan programmer ST-Link ke pin `SWDIO`, `SWCLK`, `GND`, `3V3` pada Black Pill, lalu jalankan:
 ```bash
-pio run --target upload
+pio run -e blackpill_f411ce_stlink -t upload
 ```
 
 ---
