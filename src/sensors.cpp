@@ -55,16 +55,15 @@ IRSensorData Sensors::getFiltered() {
 }
 
 bool Sensors::hasWallFront() {
-    // Dinding depan terdeteksi dari jarak jauh jika:
-    // 1. Sensor tengah 0° (PA7) melampaui frontThreshold (~200 ADC), ATAU
-    // 2. Sensor tengah mendeteksi pantulan awal (>= 140) DAN kedua sensor serong 45°
-    //    juga menangkap pantulan dinding depan di atas sideThreshold.
+    // Dinding depan terdeteksi jika:
+    // 1. Sensor tengah 0° (PA7) melampaui frontThreshold (~220 ADC), ATAU
+    // 2. Sensor tengah mendeteksi pantulan awal (>= 160) DAN salah satu sensor serong 45°
+    //    juga menangkap pantulan dinding di atas sideThreshold.
     if (filteredData.frontCenter > frontThreshold) {
         return true;
     }
-    if (filteredData.frontCenter >= 140 && 
-        filteredData.frontLeft > sideThreshold && 
-        filteredData.frontRight > sideThreshold) {
+    if (filteredData.frontCenter >= 160 && 
+        (filteredData.frontLeft > sideThreshold || filteredData.frontRight > sideThreshold)) {
         return true;
     }
     return false;
@@ -164,12 +163,7 @@ void Sensors::calibrateAmbient(uint16_t sampleCount) {
     if (avgR > DEFAULT_WALL_SIDE_THRESHOLD) rightNominal = avgR;
 
     sideThreshold = DEFAULT_WALL_SIDE_THRESHOLD;
-
-    // Deteksi dinding depan adaptif: Baseline ambient FC + 90 ADC (deteksi dari jarak jauh ~100-120mm)
-    uint16_t dynamicFront = avgFC + 90;
-    if (dynamicFront < 170) dynamicFront = 170;
-    if (dynamicFront > DEFAULT_WALL_FRONT_THRESHOLD) dynamicFront = DEFAULT_WALL_FRONT_THRESHOLD;
-    frontThreshold = dynamicFront;
+    frontThreshold = DEFAULT_WALL_FRONT_THRESHOLD;
 }
 
 uint16_t Sensors::getSideThreshold() { return sideThreshold; }

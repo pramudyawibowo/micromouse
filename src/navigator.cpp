@@ -141,11 +141,17 @@ bool Navigator::sprintDistance(float targetDistance, float cruiseSpeed, bool bra
         }
 
         // Safety check & center-lock: jika ada dinding depan
-        if (Sensors::hasWallFront()) {
-            // Berhenti di tengah sel saat pantulan dinding depan terdeteksi kuat atau sisa jarak < 25mm
-            if (irData.frontCenter >= 650 || (targetDistance - currentDistance) < 25.0f) {
+        if (Sensors::hasWallFront() || irData.frontCenter >= WALL_FRONT_STOP_ADC) {
+            // Berhenti tepat di titik tengah sel (~25-30mm dari dinding depan)
+            if (irData.frontCenter >= WALL_FRONT_STOP_ADC || (targetDistance - currentDistance) < 18.0f) {
                 break;
             }
+        }
+        // Pengaman Darurat Tabrakan Depan pada High-Speed Sprint Attack
+        if (irData.frontCenter > 1100) {
+            Motors::brake();
+            delay(20);
+            break;
         }
 
         // 3. Smooth Velocity Profile
@@ -158,11 +164,14 @@ bool Navigator::sprintDistance(float targetDistance, float cruiseSpeed, bool bra
         if (currentDistance < rampUpDist) {
             float s = currentDistance / rampUpDist;
             speed = minSpeed + (cruiseSpeed - minSpeed) * s;
-        } else if (brakeAtEnd && (remaining < rampDownDist || Sensors::hasWallFront())) {
-            // Perlambatan halus jika mendekati akhir sel atau jika mendeteksi dinding depan
+        } else if (brakeAtEnd) {
             float s = remaining / rampDownDist;
-            if (s < 0.0f) s = 0.0f;
-            if (s > 1.0f) s = 1.0f;
+            // Jika ada dinding depan, bantu perlambatan halus berdasarkan jarak sensor depan menuju WALL_FRONT_STOP_ADC
+            if (Sensors::hasWallFront() && irData.frontCenter > (WALL_FRONT_STOP_ADC - 350)) {
+                float sFront = (float)(WALL_FRONT_STOP_ADC - irData.frontCenter) / 350.0f;
+                if (sFront < s) s = sFront;
+            }
+            s = constrain(s, 0.0f, 1.0f);
             speed = minSpeed + (cruiseSpeed - minSpeed) * s;
         }
 
@@ -176,7 +185,12 @@ bool Navigator::sprintDistance(float targetDistance, float cruiseSpeed, bool bra
         float gyroSteer = (yawDiff * PID_GYRO_KP) + (gyroRate * PID_GYRO_KD);
         gyroSteer = constrain(gyroSteer, -30.0f, 30.0f);
 
-        // Slave Controller: Wall Centering Trim (Dibatasi maksimal +-12 PWM agar tidak membelokkan robot secara liar)
+        // Slave Controller: Wall Centering Trim Adaptif Kecepatan Tinggi (Sprint Attack Mode)
+        // Pada sprint kencang (>190 PWM), perbesar otoritas koreksi kemudi sensor agar robot tidak tersedot ke dinding
+        float maxTrim = (cruiseSpeed > 190.0f) ? 26.0f : 14.0f;
+        float kpWall  = (cruiseSpeed > 190.0f) ? (PID_WALL_KP * 1.5f) : PID_WALL_KP;
+        float kdWall  = (cruiseSpeed > 190.0f) ? (PID_WALL_KD * 1.5f) : PID_WALL_KD;
+
         float wallTrim = 0.0f;
         bool wallL = Sensors::hasWallLeft();
         bool wallR = Sensors::hasWallRight();
@@ -186,30 +200,40 @@ bool Navigator::sprintDistance(float targetDistance, float cruiseSpeed, bool bra
             if (fabs(centeringError) > PID_WALL_DEADBAND) {
                 float dError = (centeringError - lastCenteringError) / dtLoop;
                 lastCenteringError = centeringError;
-                wallTrim = (centeringError * PID_WALL_KP) + (dError * PID_WALL_KD);
-                wallTrim = constrain(wallTrim, -12.0f, 12.0f);
+                wallTrim = (centeringError * kpWall) + (dError * kdWall);
+                wallTrim = constrain(wallTrim, -maxTrim, maxTrim);
             } else {
                 lastCenteringError = 0.0f;
             }
         } else if (wallL) {
             float errL = (float)((int32_t)irData.left - (int32_t)Sensors::getLeftNominal());
             if (fabs(errL) > PID_WALL_DEADBAND) {
-                wallTrim = (errL * (PID_WALL_KP * 0.6f));
-                wallTrim = constrain(wallTrim, -8.0f, 8.0f);
+                wallTrim = (errL * (kpWall * 0.7f));
+                wallTrim = constrain(wallTrim, -maxTrim * 0.7f, maxTrim * 0.7f);
             }
             lastCenteringError = 0.0f;
         } else if (wallR) {
             float errR = (float)((int32_t)Sensors::getRightNominal() - (int32_t)irData.right);
             if (fabs(errR) > PID_WALL_DEADBAND) {
-                wallTrim = (errR * (PID_WALL_KP * 0.6f));
-                wallTrim = constrain(wallTrim, -8.0f, 8.0f);
+                wallTrim = (errR * (kpWall * 0.7f));
+                wallTrim = constrain(wallTrim, -maxTrim * 0.7f, maxTrim * 0.7f);
             }
             lastCenteringError = 0.0f;
         } else {
             lastCenteringError = 0.0f;
         }
 
-        float totalSteer = constrain(gyroSteer + wallTrim, -35.0f, 35.0f);
+        // Active Optical Proximity Shield (Anti-Nempel & Anti-Serempet Dinding pada High-Speed Sprint Attack)
+        if (irData.left > 1300) {
+            // Terlalu mepet ke dinding kiri: dorong paksa menjauh ke kanan seketika!
+            wallTrim += constrain((float)(irData.left - 1300) * 0.025f, 6.0f, 24.0f);
+        } else if (irData.right > 1300) {
+            // Terlalu mepet ke dinding kanan: dorong paksa menjauh ke kiri seketika!
+            wallTrim -= constrain((float)(irData.right - 1300) * 0.025f, 6.0f, 24.0f);
+        }
+
+        float maxTotalSteer = (cruiseSpeed > 190.0f) ? 55.0f : 35.0f;
+        float totalSteer = constrain(gyroSteer + wallTrim, -maxTotalSteer, maxTotalSteer);
 
         int16_t leftPwm  = (int16_t)constrain(speed + totalSteer, 25.0f, 255.0f);
         int16_t rightPwm = (int16_t)constrain(speed - totalSteer, 25.0f, 255.0f);
@@ -260,6 +284,9 @@ bool Navigator::smoothCurveTurn(bool turnLeft, float baseSpeed) {
         }
 
         IMU::update();
+        Sensors::update();
+        IRSensorData ir = Sensors::getFiltered();
+
         uint32_t nowUs = micros();
         float dt = (nowUs - lastLoopUs) * 1e-6f;
         lastLoopUs = nowUs;
@@ -280,15 +307,45 @@ bool Navigator::smoothCurveTurn(bool turnLeft, float baseSpeed) {
         lastDiff = diff;
         float gyroTrim = (diff * PID_CURVE_KP) + (dDiff * PID_CURVE_KD);
 
+        // Panduan Sensor Optik Serong & Samping saat Slalom (Anti-Tabrak Dinding & Tiang)
+        float opticalTrim = 0.0f;
+        if (turnLeft) {
+            // Belok Kiri: Sensor serong kanan & samping kanan memantau dinding luar kurva
+            uint16_t outerDist = (ir.frontRight > ir.right) ? ir.frontRight : ir.right;
+            if (outerDist > 1100) {
+                // Terlalu dekat dinding luar: perdalam belokan ke dalam agar tidak menyenggol dinding luar
+                opticalTrim += constrain((float)(outerDist - 1100) * 0.035f, 6.0f, 30.0f);
+            }
+            if (ir.left > 1500) {
+                // Terlalu mepet tiang dalam: longgarkan belokan agar tidak menyerempet tiang dalam
+                opticalTrim -= constrain((float)(ir.left - 1500) * 0.035f, 6.0f, 25.0f);
+            }
+            if (ir.frontCenter > 1300) {
+                opticalTrim += 18.0f; // Dinding depan mendekat cepat, tarik belok lebih tajam
+            }
+        } else {
+            // Belok Kanan: Sensor serong kiri & samping kiri memantau dinding luar kurva
+            uint16_t outerDist = (ir.frontLeft > ir.left) ? ir.frontLeft : ir.left;
+            if (outerDist > 1100) {
+                opticalTrim += constrain((float)(outerDist - 1100) * 0.035f, 6.0f, 30.0f);
+            }
+            if (ir.right > 1500) {
+                opticalTrim -= constrain((float)(ir.right - 1500) * 0.035f, 6.0f, 25.0f);
+            }
+            if (ir.frontCenter > 1300) {
+                opticalTrim += 18.0f;
+            }
+        }
+
         if (turnLeft) {
             // Belok Kiri: Roda Kanan adalah Outer (lebih cepat), Roda Kiri adalah Inner
-            int16_t leftPwm = (int16_t)constrain(innerSpeed - gyroTrim, 35.0f, baseSpeed);
-            int16_t rightPwm = (int16_t)outerSpeed;
+            int16_t leftPwm = (int16_t)constrain(innerSpeed - gyroTrim - opticalTrim, 30.0f, baseSpeed);
+            int16_t rightPwm = (int16_t)constrain(outerSpeed + opticalTrim * 0.5f, 30.0f, 255.0f);
             Motors::setSpeeds(leftPwm, rightPwm);
         } else {
             // Belok Kanan: Roda Kiri adalah Outer (lebih cepat), Roda Kanan adalah Inner
-            int16_t leftPwm = (int16_t)outerSpeed;
-            int16_t rightPwm = (int16_t)constrain(innerSpeed + gyroTrim, 35.0f, baseSpeed);
+            int16_t leftPwm = (int16_t)constrain(outerSpeed + opticalTrim * 0.5f, 30.0f, 255.0f);
+            int16_t rightPwm = (int16_t)constrain(innerSpeed + gyroTrim - opticalTrim, 30.0f, baseSpeed);
             Motors::setSpeeds(leftPwm, rightPwm);
         }
 
@@ -297,7 +354,6 @@ bool Navigator::smoothCurveTurn(bool turnLeft, float baseSpeed) {
     }
 
     // Jaga momentum ke sel berikutnya — tidak brake keras saat slalom
-    // Hanya coast agar roda berhenti natural tanpa menghentikan momentum translasi
     Motors::coast();
     delay(5);
     return true;
@@ -334,6 +390,9 @@ bool Navigator::smoothCurveTurn45(bool turnLeft, float baseSpeed) {
         }
 
         IMU::update();
+        Sensors::update();
+        IRSensorData ir = Sensors::getFiltered();
+
         uint32_t nowUs = micros();
         float dt = (nowUs - lastLoopUs) * 1e-6f;
         lastLoopUs = nowUs;
@@ -354,13 +413,26 @@ bool Navigator::smoothCurveTurn45(bool turnLeft, float baseSpeed) {
         lastDiff = diff;
         float gyroTrim = (diff * PID_CURVE_KP) + (dDiff * PID_CURVE_KD);
 
+        // Panduan optik pasak gerbang diagonal 45 derajat
+        float opticalTrim = 0.0f;
         if (turnLeft) {
-            int16_t leftPwm = (int16_t)constrain(innerSpeed - gyroTrim, 35.0f, baseSpeed);
+            if (ir.frontRight > 1200) opticalTrim += 15.0f;
+            if (ir.left > 1500) opticalTrim -= 15.0f;
+        } else {
+            if (ir.frontLeft > 1200) opticalTrim += 15.0f;
+            if (ir.right > 1500) opticalTrim -= 15.0f;
+        }
+        if (ir.frontCenter > 1300) {
+            opticalTrim += 15.0f; // Dinding depan mendekat cepat pada saat kurva 45
+        }
+
+        if (turnLeft) {
+            int16_t leftPwm = (int16_t)constrain(innerSpeed - gyroTrim - opticalTrim, 35.0f, baseSpeed);
             int16_t rightPwm = (int16_t)outerSpeed;
             Motors::setSpeeds(leftPwm, rightPwm);
         } else {
             int16_t leftPwm = (int16_t)outerSpeed;
-            int16_t rightPwm = (int16_t)constrain(innerSpeed + gyroTrim, 35.0f, baseSpeed);
+            int16_t rightPwm = (int16_t)constrain(innerSpeed + gyroTrim - opticalTrim, 35.0f, baseSpeed);
             Motors::setSpeeds(leftPwm, rightPwm);
         }
 
@@ -460,13 +532,26 @@ bool Navigator::sprintDiagonal(float numDiagonalSteps, float cruiseSpeed) {
 
         // Post balancing: Sensor serong 45° (IR_FRONT_L PB0 dan IR_FRONT_R PA3) menghadap tiang pasak labirin
         IRSensorData ir = Sensors::getFiltered();
-        if (ir.frontLeft > 1400 && ir.frontRight > 1400) {
+        if (ir.frontLeft > 280 || ir.frontRight > 280) {
             float postDiff = (float)ir.frontLeft - (float)ir.frontRight;
             float dPostDiff = (postDiff - lastPostDiff) / dtLoop;
             lastPostDiff = postDiff;
-            steeringCorrection += (postDiff * 0.045f) + (dPostDiff * 0.015f);
+            steeringCorrection += (postDiff * 0.035f) + (dPostDiff * 0.012f);
         } else {
             lastPostDiff = 0.0f;
+        }
+
+        // Active Optical Proximity Shield pada Sprint Diagonal (Anti-Serempet Pasak Tiang)
+        if (ir.frontLeft > 1300) steeringCorrection += 25.0f;  // Terlalu mepet pasak kiri -> dorong ke kanan
+        if (ir.frontRight > 1300) steeringCorrection -= 25.0f; // Terlalu mepet pasak kanan -> dorong ke kiri
+        if (ir.left > 1400) steeringCorrection += 15.0f;
+        if (ir.right > 1400) steeringCorrection -= 15.0f;
+
+        // Pengaman Darurat Tabrakan Depan pada Sprint Diagonal
+        if (ir.frontCenter > 850) {
+            Motors::brake();
+            delay(20);
+            break;
         }
 
         steeringCorrection = constrain(steeringCorrection, -70.0f, 70.0f);
@@ -496,13 +581,37 @@ bool Navigator::sprintDiagonal(float numDiagonalSteps, float cruiseSpeed) {
 bool Navigator::turn90(bool turnLeft, float turnSpeed) {
     Motors::enable();
 
-    // Cek jika moncong depan dekat dinding; mundur halus ~25mm agar moncong bebas berputar
     Sensors::update();
+    IRSensorData ir = Sensors::getFiltered();
+
+    // 1. Penyesuaian Cerdas Jarak Dinding Depan Sebelum Berbelok
+    // Memastikan robot tidak terlalu jauh (tengah sel) dan tidak terlalu dekat (moncong bebas)
     if (Sensors::hasWallFront()) {
-        Motors::setSpeeds(-110, -110);
-        delay(90);
-        Motors::brake();
-        delay(20);
+        if (ir.frontCenter > WALL_FRONT_TOO_CLOSE_ADC) {
+            // Jika terlalu mepet (<20mm): Mundur halus sedikit sampai jarak aman
+            uint32_t tAdj = millis();
+            while ((millis() - tAdj) < 60) {
+                Sensors::update();
+                if (Sensors::getFiltered().frontCenter <= (WALL_FRONT_STOP_ADC + 100)) break;
+                Motors::setSpeeds(-60, -60);
+                delay(4);
+            }
+            Motors::brake();
+            delay(15);
+        } else if (ir.frontCenter < WALL_FRONT_TOO_FAR_ADC && ir.frontCenter >= DEFAULT_WALL_FRONT_THRESHOLD) {
+            // Jika berhenti terlalu jauh: Maju halus mendekati dinding depan ke titik tengah sel yang ideal
+            uint32_t tAdj = millis();
+            while ((millis() - tAdj) < 80) {
+                Sensors::update();
+                if (Sensors::getFiltered().frontCenter >= (WALL_FRONT_STOP_ADC - 50)) break;
+                Motors::setSpeeds(50, 50);
+                delay(4);
+            }
+            Motors::brake();
+            delay(15);
+        }
+        // Jika sudah di rentang ideal (WALL_FRONT_TOO_FAR_ADC s.d. WALL_FRONT_TOO_CLOSE_ADC),
+        // robot sudah tepat di tengah sel, langsung lanjut berputar.
     }
 
     // Fallback: Jika IMU MPU6050 tidak terpasang atau tidak terdeteksi di I2C bus
@@ -523,21 +632,20 @@ bool Navigator::turn90(bool turnLeft, float turnSpeed) {
                 delay(2);
             }
         } else {
-            // Timing-based pivot turn (~380ms pada turnSpeed)
+            // Timing-based pivot turn (~320ms pada turnSpeed)
             if (turnLeft) {
                 Motors::setSpeeds(-(int16_t)turnSpeed, (int16_t)turnSpeed);
             } else {
                 Motors::setSpeeds((int16_t)turnSpeed, -(int16_t)turnSpeed);
             }
             uint32_t t0 = millis();
-            while ((millis() - t0) < 380) {
+            while ((millis() - t0) < 320) {
                 if (UI::checkEmergencyStop()) { emergencyStop(); return false; }
                 delay(2);
             }
         }
         Motors::brake();
         delay(50);
-        Motors::coast();
         return true;
     }
 
@@ -561,6 +669,9 @@ bool Navigator::turn90(bool turnLeft, float turnSpeed) {
         }
 
         IMU::update();
+        Sensors::update();
+        IRSensorData irTurn = Sensors::getFiltered();
+
         uint32_t nowUs = micros();
         float dt = (nowUs - lastLoopUs) * 1e-6f;
         lastLoopUs = nowUs;
@@ -581,17 +692,26 @@ bool Navigator::turn90(bool turnLeft, float turnSpeed) {
             lastTurnYaw = currentYaw;
             lastTurnProgressTime = millis();
         } else if ((millis() - lastTurnProgressTime) > 800) {
-            // Jika sudut sudah mendekati target (<= 4.5 derajat), belokan dianggap selesai
-            // (sisa deviasi kecil akan diluruskan seketika oleh Gyro Heading Lock saat maju)
             if (fabs(diff) <= 4.5f) {
                 break;
             }
-            // Robot benar-benar macet/tertahan di sudut besar
             Motors::brake();
             Motors::disable();
             Buzzer::playAlert();
             Serial.println(F("\n[FAILSAFE] BELOKAN TERTAHAN / NYANGKUT! Daya motor diputus."));
             return false;
+        }
+
+        // Pengawasan Proteksi Sensor Serong & Depan saat Berputar
+        bool dangerAhead = false;
+        if (turnLeft) {
+            if (irTurn.frontRight > 2400 || irTurn.frontCenter > 2600) {
+                dangerAhead = true;
+            }
+        } else {
+            if (irTurn.frontLeft > 2400 || irTurn.frontCenter > 2600) {
+                dangerAhead = true;
+            }
         }
 
         // Closed-Loop PID Turning:
@@ -612,8 +732,11 @@ bool Navigator::turn90(bool turnLeft, float turnSpeed) {
 
         float controlOutput = pTerm + iTerm + dTerm;
         float pSpeed = fabs(controlOutput);
-        // Kecepatan minimum 85.0f PWM agar motor N20 berputar lincah dan bebas hambatan
-        pSpeed = constrain(pSpeed, 85.0f, turnSpeed);
+        
+        // Deselerasi halus: Jika sisa sudut < 15°, turunkan batas minSpeed agar berhenti presisi di 90°
+        float minTurnPwm = (fabs(diff) < 15.0f) ? 58.0f : 85.0f;
+        if (dangerAhead) minTurnPwm = 55.0f; // Perlambat jika mendekati dinding luar
+        pSpeed = constrain(pSpeed, minTurnPwm, turnSpeed);
 
         if (controlOutput > 0) {
             // Need CCW (Turn Left): Left wheel reverse, Right wheel forward
@@ -627,8 +750,31 @@ bool Navigator::turn90(bool turnLeft, float turnSpeed) {
     }
 
     Motors::brake();
+    delay(40);
+
+    // 2. Koreksi & Pelurusan Otomatis Menggunakan Sensor Samping Pasca Belokan
+    Sensors::update();
+    if (Sensors::hasWallLeft() && Sensors::hasWallRight()) {
+        float angleErr = Sensors::getAngleError();
+        // Jika sudut miring terhadap lorong baru, luruskan secara halus
+        if (fabs(angleErr) > 35.0f && fabs(angleErr) < 350.0f) {
+            uint32_t tAlign = millis();
+            while ((millis() - tAlign) < 50) {
+                Sensors::update();
+                angleErr = Sensors::getAngleError();
+                if (fabs(angleErr) < 20.0f) break;
+                int16_t corrSpeed = (angleErr > 0) ? -55 : 55;
+                Motors::setSpeeds(corrSpeed, -corrSpeed);
+                delay(4);
+            }
+            Motors::brake();
+            delay(15);
+            IMU::update();
+        }
+    }
+
+    Motors::brake();
     delay(20);
-    Motors::coast();
     return true;
 }
 

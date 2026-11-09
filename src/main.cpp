@@ -484,7 +484,10 @@ void runFastRun() {
                 Serial.print(path[i].cellCount);
                 Serial.println(F(" cells"));
                 // Kecepatan tinggi untuk sprint lurus panjang sesuai tier
-                Navigator::sprintDistance(path[i].cellCount * CELL_SIZE_MM, sprintSpd);
+                if (!Navigator::sprintDistance(path[i].cellCount * CELL_SIZE_MM, sprintSpd)) {
+                    running = false;
+                    return;
+                }
                 break;
 
             case CMD_CURVE_LEFT:
@@ -492,7 +495,10 @@ void runFastRun() {
                 Serial.print(i + 1);
                 Serial.println(F(": MENGULAR KIRI (Slalom Curve 90 Left)"));
                 // Gerakan mengular kurva tanpa berhenti sesuai tier
-                Navigator::smoothCurveTurn(true, curveSpd);
+                if (!Navigator::smoothCurveTurn(true, curveSpd)) {
+                    running = false;
+                    return;
+                }
                 break;
 
             case CMD_CURVE_RIGHT:
@@ -500,21 +506,30 @@ void runFastRun() {
                 Serial.print(i + 1);
                 Serial.println(F(": MENGULAR KANAN (Slalom Curve 90 Right)"));
                 // Gerakan mengular kurva tanpa berhenti sesuai tier
-                Navigator::smoothCurveTurn(false, curveSpd);
+                if (!Navigator::smoothCurveTurn(false, curveSpd)) {
+                    running = false;
+                    return;
+                }
                 break;
 
             case CMD_DIAG_ENTER_LEFT:
                 Serial.print(F("Step "));
                 Serial.print(i + 1);
                 Serial.println(F(": DIAG ENTER LEFT (Smooth 45 Curve Left)"));
-                Navigator::smoothCurveTurn45(true, diagCurveSpd);
+                if (!Navigator::smoothCurveTurn45(true, diagCurveSpd)) {
+                    running = false;
+                    return;
+                }
                 break;
 
             case CMD_DIAG_ENTER_RIGHT:
                 Serial.print(F("Step "));
                 Serial.print(i + 1);
                 Serial.println(F(": DIAG ENTER RIGHT (Smooth 45 Curve Right)"));
-                Navigator::smoothCurveTurn45(false, diagCurveSpd);
+                if (!Navigator::smoothCurveTurn45(false, diagCurveSpd)) {
+                    running = false;
+                    return;
+                }
                 break;
 
             case CMD_DIAG_SPRINT:
@@ -523,28 +538,40 @@ void runFastRun() {
                 Serial.print(F(": DIAG SPRINT "));
                 Serial.print(path[i].cellCount);
                 Serial.println(F(" diagonal steps (Post Balancing)"));
-                Navigator::sprintDiagonal(path[i].cellCount, diagSprintSpd);
+                if (!Navigator::sprintDiagonal(path[i].cellCount, diagSprintSpd)) {
+                    running = false;
+                    return;
+                }
                 break;
 
             case CMD_DIAG_EXIT_LEFT:
                 Serial.print(F("Step "));
                 Serial.print(i + 1);
                 Serial.println(F(": DIAG EXIT LEFT (Smooth 45 Curve Left)"));
-                Navigator::smoothCurveTurn45(true, diagCurveSpd);
+                if (!Navigator::smoothCurveTurn45(true, diagCurveSpd)) {
+                    running = false;
+                    return;
+                }
                 break;
 
             case CMD_DIAG_EXIT_RIGHT:
                 Serial.print(F("Step "));
                 Serial.print(i + 1);
                 Serial.println(F(": DIAG EXIT RIGHT (Smooth 45 Curve Right)"));
-                Navigator::smoothCurveTurn45(false, diagCurveSpd);
+                if (!Navigator::smoothCurveTurn45(false, diagCurveSpd)) {
+                    running = false;
+                    return;
+                }
                 break;
 
             case CMD_PIVOT_180:
                 Serial.print(F("Step "));
                 Serial.print(i + 1);
                 Serial.println(F(": PIVOT 180"));
-                Navigator::turn180(SCAN_SPEED_TURN);
+                if (!Navigator::turn180(SCAN_SPEED_TURN)) {
+                    running = false;
+                    return;
+                }
                 break;
 
             case CMD_FINISH: {
@@ -738,6 +765,9 @@ void startSelectedMode() {
 
     if (selectedMenuMode == MODE_SCAN_MAZE || selectedMenuMode == MODE_FAST_RUN) {
         Maze::resetPosition();
+        if (selectedMenuMode == MODE_SCAN_MAZE) {
+            Maze::resetWalls(); // Reset peta dinding agar scan baru dimulai dari peta bersih 16x16
+        }
 
         Serial.println(F("Robot ditaruh di sel Start (0,0). Lepaskan tangan Anda..."));
         if (Display::isConnected()) {

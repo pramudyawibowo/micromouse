@@ -110,8 +110,13 @@
 
 // Wall Detection Thresholds (12-bit ADC: 0 - 4095)
 // Default threshold aman untuk deteksi dinding labirin standar
-#define DEFAULT_WALL_FRONT_THRESHOLD   280   // Peka mendeteksi dinding depan dari jarak aman (~100-120mm)
-#define DEFAULT_WALL_SIDE_THRESHOLD    350   // Threshold dinding samping (kiri/kanan) responsif
+#define DEFAULT_WALL_FRONT_THRESHOLD   200   // Ambang peka deteksi dinding depan (pasti tembus saat ada dinding depan)
+#define DEFAULT_WALL_SIDE_THRESHOLD    320   // Threshold dinding samping (kiri/kanan) responsif
+
+// Ambang Presisi Jarak Dinding Depan Sebelum Berbelok
+#define WALL_FRONT_STOP_ADC            650   // Target henti sensor depan (~25-30mm dari dinding, pas di tengah sel)
+#define WALL_FRONT_TOO_CLOSE_ADC      1200   // Batas jika terlalu mepet (hanya mundur jika moncong <15mm dari dinding)
+#define WALL_FRONT_TOO_FAR_ADC         400   // Batas jika berhenti terlalu jauh dari dinding depan
 
 // --- MOTION SPEEDS & TUNING CONSTANTS (GESIT, LINCAH, & BERTENAGA) ---
 // Mode 3: Scan / Exploration Mode
