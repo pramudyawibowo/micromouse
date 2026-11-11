@@ -12,6 +12,7 @@ public:
     static bool turn90(bool turnLeft, float turnSpeed = SCAN_SPEED_TURN);
     static bool turn180(float turnSpeed = SCAN_SPEED_TURN);
     static void alignFrontWall();
+    static bool ensureFrontWallClearance();
 
     // High-Speed Fast Run Primitives (Jalur Tercepat & Gerakan Mengular Slalom 90°)
     static bool smoothCurveTurn(bool turnLeft, float baseSpeed = FAST_RUN_CURVE_SPEED);

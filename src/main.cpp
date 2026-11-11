@@ -223,8 +223,12 @@ void runWallFollower() {
     if (Sensors::hasWallFront()) {
         Navigator::emergencyStop();
         Buzzer::beep(1500, 40);
-        delay(80);
+        delay(60);
 
+        // Pastikan ruang bebas moncong: otomatis mundur jika terlalu dekat dinding depan
+        Navigator::ensureFrontWallClearance();
+
+        Sensors::update();
         if (!Sensors::hasWallLeft()) {
             Navigator::turn90(true, SCAN_SPEED_TURN);
         } else if (!Sensors::hasWallRight()) {
@@ -358,6 +362,13 @@ void runScanMazeStep() {
 
     switch (next) {
         case ACTION_FORWARD:
+            // Cek proteksi: jika di depan ternyata ada dinding, JANGAN paksa maju!
+            // Mundur ke zona aman dan biarkan robot memilih belok di siklus berikutnya
+            if (Sensors::hasWallFront() && Sensors::getFiltered().frontCenter >= (WALL_FRONT_STOP_ADC - 100)) {
+                Serial.println(F("[PROTEKSI] Dinding depan terlalu dekat! Mundur ke zona aman & re-evaluasi arah..."));
+                Navigator::ensureFrontWallClearance();
+                return;
+            }
             Serial.println(F("FORWARD"));
             if (!Navigator::moveForwardCell(fwdSpeed, true)) {
                 running = false;

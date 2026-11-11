@@ -148,7 +148,7 @@ bool Navigator::sprintDistance(float targetDistance, float cruiseSpeed, bool bra
             }
         }
         // Pengaman Darurat Tabrakan Depan pada High-Speed Sprint Attack
-        if (irData.frontCenter > 1100) {
+        if (irData.frontCenter > (WALL_FRONT_TOO_CLOSE_ADC + 200)) {
             Motors::brake();
             delay(20);
             break;
@@ -572,6 +572,58 @@ bool Navigator::sprintDiagonal(float numDiagonalSteps, float cruiseSpeed) {
 
 
 // ==============================================================================
+// ENSURE FRONT WALL CLEARANCE (MUNDUR OTOMATIS JIKA TERLALU DEKAT DINDING DEPAN)
+// Menjamin moncong robot memiliki ruang putar bebas (turning clearance) sebelum
+// berbelok 90 atau 180 derajat, sehingga tidak menyenggol atau terhambat dinding depan.
+// ==============================================================================
+bool Navigator::ensureFrontWallClearance() {
+    Sensors::update();
+    IRSensorData ir = Sensors::getFiltered();
+
+    if (!Sensors::hasWallFront()) return true;
+
+    // 1. Jika moncong terlalu dekat ke dinding depan (melebihi target henti aman putar):
+    // Otomatis mundur aktif dengan tenaga N20 yang cukup (-80 PWM) sampai ke titik aman
+    if (ir.frontCenter >= (WALL_FRONT_STOP_ADC - 50)) {
+        Motors::enable();
+        uint32_t tStart = millis();
+        uint16_t targetClearance = (WALL_FRONT_STOP_ADC > 300) ? (WALL_FRONT_STOP_ADC - 250) : 250;
+        while ((millis() - tStart) < 250) {
+            Sensors::update();
+            ir = Sensors::getFiltered();
+            if (ir.frontCenter <= targetClearance) {
+                break;
+            }
+            Motors::setSpeeds(-80, -80);
+            delay(4);
+        }
+        Motors::brake();
+        delay(25);
+        return true;
+    }
+
+    // 2. Jika berhenti terlalu jauh dari dinding depan (< WALL_FRONT_TOO_FAR_ADC):
+    if (ir.frontCenter < WALL_FRONT_TOO_FAR_ADC && ir.frontCenter >= DEFAULT_WALL_FRONT_THRESHOLD) {
+        Motors::enable();
+        uint32_t tStart = millis();
+        while ((millis() - tStart) < 180) {
+            Sensors::update();
+            ir = Sensors::getFiltered();
+            if (ir.frontCenter >= (WALL_FRONT_STOP_ADC - 150)) {
+                break;
+            }
+            Motors::setSpeeds(65, 65);
+            delay(4);
+        }
+        Motors::brake();
+        delay(25);
+        return true;
+    }
+
+    return true;
+}
+
+// ==============================================================================
 // DISCRETE PIVOT TURN 90 (CLOSED-LOOP PID CONTROLLER + ACTIVE GYRO Z DAMPING)
 // Menggunakan PID Controller lengkap:
 // - P-Term: Torsi rotasi proporsional terhadap sisa sudut
@@ -581,38 +633,8 @@ bool Navigator::sprintDiagonal(float numDiagonalSteps, float cruiseSpeed) {
 bool Navigator::turn90(bool turnLeft, float turnSpeed) {
     Motors::enable();
 
-    Sensors::update();
-    IRSensorData ir = Sensors::getFiltered();
-
-    // 1. Penyesuaian Cerdas Jarak Dinding Depan Sebelum Berbelok
-    // Memastikan robot tidak terlalu jauh (tengah sel) dan tidak terlalu dekat (moncong bebas)
-    if (Sensors::hasWallFront()) {
-        if (ir.frontCenter > WALL_FRONT_TOO_CLOSE_ADC) {
-            // Jika terlalu mepet (<20mm): Mundur halus sedikit sampai jarak aman
-            uint32_t tAdj = millis();
-            while ((millis() - tAdj) < 60) {
-                Sensors::update();
-                if (Sensors::getFiltered().frontCenter <= (WALL_FRONT_STOP_ADC + 100)) break;
-                Motors::setSpeeds(-60, -60);
-                delay(4);
-            }
-            Motors::brake();
-            delay(15);
-        } else if (ir.frontCenter < WALL_FRONT_TOO_FAR_ADC && ir.frontCenter >= DEFAULT_WALL_FRONT_THRESHOLD) {
-            // Jika berhenti terlalu jauh: Maju halus mendekati dinding depan ke titik tengah sel yang ideal
-            uint32_t tAdj = millis();
-            while ((millis() - tAdj) < 80) {
-                Sensors::update();
-                if (Sensors::getFiltered().frontCenter >= (WALL_FRONT_STOP_ADC - 50)) break;
-                Motors::setSpeeds(50, 50);
-                delay(4);
-            }
-            Motors::brake();
-            delay(15);
-        }
-        // Jika sudah di rentang ideal (WALL_FRONT_TOO_FAR_ADC s.d. WALL_FRONT_TOO_CLOSE_ADC),
-        // robot sudah tepat di tengah sel, langsung lanjut berputar.
-    }
+    // 1. Pastikan moncong memiliki clearance bebas (otomatis mundur jika terlalu dekat dinding depan)
+    ensureFrontWallClearance();
 
     // Fallback: Jika IMU MPU6050 tidak terpasang atau tidak terdeteksi di I2C bus
     if (!IMU::isAvailable()) {
@@ -661,8 +683,9 @@ bool Navigator::turn90(bool turnLeft, float turnSpeed) {
     float integralTurn = 0.0f;
     uint32_t lastTurnProgressTime = millis();
     float lastTurnYaw = startYaw;
+    uint8_t recoveryAttempts = 0;
 
-    while ((millis() - startTime) < 1400) {
+    while ((millis() - startTime) < 1600) {
         if (UI::checkEmergencyStop()) {
             emergencyStop();
             return false;
@@ -687,11 +710,24 @@ bool Navigator::turn90(bool turnLeft, float turnSpeed) {
             break;
         }
 
-        // Anti-Stall Failsafe pada Belokan Pivot
-        if (fabs(currentYaw - lastTurnYaw) >= 1.5f) {
+        // Anti-Stall Failsafe & Auto-Recovery pada Belokan Pivot
+        if (fabs(currentYaw - lastTurnYaw) >= 1.2f) {
             lastTurnYaw = currentYaw;
             lastTurnProgressTime = millis();
-        } else if ((millis() - lastTurnProgressTime) > 800) {
+        } else if ((millis() - lastTurnProgressTime) > 280) {
+            // Jika dalam 280ms sudut belum berubah (terhambat/nyangkut di dinding):
+            if (recoveryAttempts < 2) {
+                recoveryAttempts++;
+                // Mundur darurat 15-20mm untuk melepas moncong dari dinding
+                Motors::setSpeeds(-85, -85);
+                delay(90);
+                Motors::brake();
+                delay(20);
+                lastTurnProgressTime = millis();
+                lastTurnYaw = IMU::getYaw();
+                continue;
+            }
+
             if (fabs(diff) <= 4.5f) {
                 break;
             }
@@ -779,6 +815,7 @@ bool Navigator::turn90(bool turnLeft, float turnSpeed) {
 }
 
 bool Navigator::turn180(float turnSpeed) {
+    ensureFrontWallClearance();
     if (!turn90(false, turnSpeed)) return false;
     delay(15);
     return turn90(false, turnSpeed);
