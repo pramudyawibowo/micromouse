@@ -732,49 +732,25 @@ bool Navigator::turn90(bool turnLeft, float turnSpeed) {
         pSpeed = constrain(pSpeed, minTurnPwm, turnSpeed);
 
         // ----------------------------------------------------------------------
-        // DYNAMIC IR-GUIDED WALL AVOIDANCE SAAT BELOK 90°
-        // Menggunakan sensor serong (PB0/PA3) dan depan (PA4).
-        // Jika moncong mendekati dinding depan saat memutar, kurangi dorongan roda yang maju
-        // agar moncong tidak mendesak dinding depan, TANPA PERNAH menggerakkan kedua roda mundur!
+        // PURE IN-PLACE SYMMETRIC PIVOT TURN 90° (ZERO BACKWARD / LATERAL DRIFT)
+        // Kedua roda berputar berlawanan arah dengan kecepatan persis identik (+/- pSpeed).
+        // Titik pusat rotasi tepat di tengah poros as roda (zero linear displacement),
+        // menjamin robot TIDAK PERNAH mundur atau menggeser ban/bodi belakang ke dinding samping!
         // ----------------------------------------------------------------------
         float leftPwmTarget = 0.0f;
         float rightPwmTarget = 0.0f;
 
         if (controlOutput > 0) {
-            // Belok Kiri (CCW): Roda kiri mundur (-), roda kanan maju (+)
-            uint16_t frontProximity = (irTurn.frontRight > irTurn.frontCenter) ? irTurn.frontRight : irTurn.frontCenter;
-
-            if (frontProximity >= (WALL_FRONT_STOP_ADC + 150)) {
-                // Sangat mepet dinding depan saat memutar: roda kanan diam (0 PWM), roda kiri tarik mundur bertenaga!
-                leftPwmTarget  = -pSpeed;
-                rightPwmTarget = 0.0f;
-            } else if (frontProximity >= WALL_FRONT_STOP_ADC) {
-                // Dinding depan mendekat: batasi dorongan roda kanan maju ke minimum 150 PWM
-                leftPwmTarget  = -pSpeed;
-                rightPwmTarget = 150.0f;
-            } else {
-                leftPwmTarget  = -pSpeed;
-                rightPwmTarget = pSpeed;
-            }
+            // Belok Kiri (CCW): Roda kiri mundur (-pSpeed), roda kanan maju (+pSpeed)
+            leftPwmTarget  = -pSpeed;
+            rightPwmTarget = pSpeed;
         } else {
-            // Belok Kanan (CW): Roda kiri maju (+), roda kanan mundur (-)
-            uint16_t frontProximity = (irTurn.frontLeft > irTurn.frontCenter) ? irTurn.frontLeft : irTurn.frontCenter;
-
-            if (frontProximity >= (WALL_FRONT_STOP_ADC + 150)) {
-                // Sangat mepet dinding depan saat memutar: roda kiri diam (0 PWM), roda kanan tarik mundur bertenaga!
-                leftPwmTarget  = 0.0f;
-                rightPwmTarget = -pSpeed;
-            } else if (frontProximity >= WALL_FRONT_STOP_ADC) {
-                // Dinding depan mendekat: batasi dorongan roda kiri maju ke minimum 150 PWM
-                leftPwmTarget  = 150.0f;
-                rightPwmTarget = -pSpeed;
-            } else {
-                leftPwmTarget  = pSpeed;
-                rightPwmTarget = -pSpeed;
-            }
+            // Belok Kanan (CW): Roda kiri maju (+pSpeed), roda kanan mundur (-pSpeed)
+            leftPwmTarget  = pSpeed;
+            rightPwmTarget = -pSpeed;
         }
 
-        // Terapkan kecepatan ke motor (selalu >= 150 PWM)
+        // Terapkan kecepatan ke motor (selalu >= 150 PWM murni rotasi di tempat)
         Motors::setSpeeds((int16_t)leftPwmTarget, (int16_t)rightPwmTarget);
 
         delay(4);
