@@ -146,9 +146,9 @@
 #define DEFAULT_WALL_SIDE_THRESHOLD    320   // Threshold dinding samping (kiri/kanan) responsif
 
 // Ambang Presisi Jarak Dinding Depan Sebelum Berbelok
-#define WALL_FRONT_STOP_ADC           1400   // Target henti sensor depan (~25-30mm dari dinding, pas di tengah sel)
-#define WALL_FRONT_TOO_CLOSE_ADC      1600   // Batas jika terlalu mepet (hanya mundur jika moncong <15mm dari dinding)
-#define WALL_FRONT_TOO_FAR_ADC         500   // Batas jika berhenti terlalu jauh dari dinding depan
+#define WALL_FRONT_STOP_ADC            600   // Target henti sensor depan (~30-35mm dari dinding, ideal untuk radius putar moncong)
+#define WALL_FRONT_TOO_CLOSE_ADC       750   // Batas jika terlalu mepet (otomatis mundur cepat ke zona aman putar)
+#define WALL_FRONT_TOO_FAR_ADC         300   // Batas jika berhenti terlalu jauh dari dinding depan
 
 // --- MOTION SPEEDS & TUNING CONSTANTS (GESIT, LINCAH, & BERTENAGA) ---
 // Mode 3: Scan / Exploration Mode

@@ -223,6 +223,22 @@ Action Maze::getNextAction() {
         }
     }
 
+    if (bestCost == 0xFFFFFFFF) {
+        // Fallback jika tidak ada tetangga dengan jarak valid (misal jalan buntu):
+        // Cari arah mana saja yang TIDAK ada dindingnya
+        for (int i = 0; i < 4; i++) {
+            Direction d = testDirs[i];
+            if (!hasWall(posX, posY, d)) {
+                int8_t nx = posX + DX[d];
+                int8_t ny = posY + DY[d];
+                if (nx >= 0 && nx < MAZE_WIDTH && ny >= 0 && ny < MAZE_HEIGHT) {
+                    bestDir = d;
+                    break;
+                }
+            }
+        }
+    }
+
     int8_t rel = (int8_t)bestDir - (int8_t)currentHeading;
     if (rel < 0) rel += 4;
 

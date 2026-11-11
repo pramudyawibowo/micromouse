@@ -572,7 +572,7 @@ bool Navigator::sprintDiagonal(float numDiagonalSteps, float cruiseSpeed) {
 
 
 // ==============================================================================
-// ENSURE FRONT WALL CLEARANCE (MUNDUR OTOMATIS JIKA TERLALU DEKAT DINDING DEPAN)
+// ENSURE FRONT WALL CLEARANCE (MUNDUR CEPAT JIKA TERLALU MEKET DINDING DEPAN)
 // Menjamin moncong robot memiliki ruang putar bebas (turning clearance) sebelum
 // berbelok 90 atau 180 derajat, sehingga tidak menyenggol atau terhambat dinding depan.
 // ==============================================================================
@@ -582,41 +582,23 @@ bool Navigator::ensureFrontWallClearance() {
 
     if (!Sensors::hasWallFront()) return true;
 
-    // 1. Jika moncong terlalu dekat ke dinding depan (melebihi target henti aman putar):
-    // Otomatis mundur aktif dengan tenaga N20 yang cukup (-80 PWM) sampai ke titik aman
-    if (ir.frontCenter >= (WALL_FRONT_STOP_ADC - 50)) {
+    // Jika moncong terlalu dekat ke dinding depan (melebihi target henti aman putar):
+    // Mundur CEPAT dan TEGAS dengan PWM -130 agar responsif seketika tanpa hunting
+    if (ir.frontCenter >= WALL_FRONT_STOP_ADC) {
         Motors::enable();
         uint32_t tStart = millis();
-        uint16_t targetClearance = (WALL_FRONT_STOP_ADC > 300) ? (WALL_FRONT_STOP_ADC - 250) : 250;
-        while ((millis() - tStart) < 250) {
+        uint16_t targetClearance = (WALL_FRONT_STOP_ADC > 180) ? (WALL_FRONT_STOP_ADC - 150) : 150;
+        while ((millis() - tStart) < 180) {
             Sensors::update();
             ir = Sensors::getFiltered();
             if (ir.frontCenter <= targetClearance) {
                 break;
             }
-            Motors::setSpeeds(-80, -80);
-            delay(4);
+            Motors::setSpeeds(-130, -130);
+            delay(3);
         }
         Motors::brake();
-        delay(25);
-        return true;
-    }
-
-    // 2. Jika berhenti terlalu jauh dari dinding depan (< WALL_FRONT_TOO_FAR_ADC):
-    if (ir.frontCenter < WALL_FRONT_TOO_FAR_ADC && ir.frontCenter >= DEFAULT_WALL_FRONT_THRESHOLD) {
-        Motors::enable();
-        uint32_t tStart = millis();
-        while ((millis() - tStart) < 180) {
-            Sensors::update();
-            ir = Sensors::getFiltered();
-            if (ir.frontCenter >= (WALL_FRONT_STOP_ADC - 150)) {
-                break;
-            }
-            Motors::setSpeeds(65, 65);
-            delay(4);
-        }
-        Motors::brake();
-        delay(25);
+        delay(30);
         return true;
     }
 
@@ -718,8 +700,8 @@ bool Navigator::turn90(bool turnLeft, float turnSpeed) {
             // Jika dalam 280ms sudut belum berubah (terhambat/nyangkut di dinding):
             if (recoveryAttempts < 2) {
                 recoveryAttempts++;
-                // Mundur darurat 15-20mm untuk melepas moncong dari dinding
-                Motors::setSpeeds(-85, -85);
+                // Mundur darurat cepat dan bertenaga untuk melepas moncong dari dinding
+                Motors::setSpeeds(-130, -130);
                 delay(90);
                 Motors::brake();
                 delay(20);

@@ -363,12 +363,35 @@ void runScanMazeStep() {
     switch (next) {
         case ACTION_FORWARD:
             // Cek proteksi: jika di depan ternyata ada dinding, JANGAN paksa maju!
-            // Mundur ke zona aman dan biarkan robot memilih belok di siklus berikutnya
-            if (Sensors::hasWallFront() && Sensors::getFiltered().frontCenter >= (WALL_FRONT_STOP_ADC - 100)) {
-                Serial.println(F("[PROTEKSI] Dinding depan terlalu dekat! Mundur ke zona aman & re-evaluasi arah..."));
+            // Mundur cepat ke zona aman lalu langsung putuskan arah belokan (tidak boleh fluktuasi/stuck!)
+            if (Sensors::hasWallFront()) {
+                Serial.println(F("[PROTEKSI] Dinding depan terdeteksi! Mundur cepat ke ruang bebas & langsung belok..."));
                 Navigator::ensureFrontWallClearance();
-                return;
+                Maze::updateWalls(true, Sensors::hasWallLeft(), Sensors::hasWallRight());
+
+                // Langsung eksekusi belokan alternatif tanpa delay atau hunting
+                if (!Sensors::hasWallLeft()) {
+                    Serial.println(F("PILIH ALTERNATIF: TURN LEFT 90 -> FORWARD"));
+                    if (!Navigator::turn90(true, turnSpeed)) { running = false; return; }
+                    Maze::applyAction(ACTION_TURN_LEFT);
+                    if (!Navigator::moveForwardCell(fwdSpeed, true)) { running = false; return; }
+                    Maze::applyAction(ACTION_FORWARD);
+                } else if (!Sensors::hasWallRight()) {
+                    Serial.println(F("PILIH ALTERNATIF: TURN RIGHT 90 -> FORWARD"));
+                    if (!Navigator::turn90(false, turnSpeed)) { running = false; return; }
+                    Maze::applyAction(ACTION_TURN_RIGHT);
+                    if (!Navigator::moveForwardCell(fwdSpeed, true)) { running = false; return; }
+                    Maze::applyAction(ACTION_FORWARD);
+                } else {
+                    Serial.println(F("PILIH ALTERNATIF: TURN 180 -> FORWARD"));
+                    if (!Navigator::turn180(turnSpeed)) { running = false; return; }
+                    Maze::applyAction(ACTION_TURN_AROUND);
+                    if (!Navigator::moveForwardCell(fwdSpeed, true)) { running = false; return; }
+                    Maze::applyAction(ACTION_FORWARD);
+                }
+                break;
             }
+
             Serial.println(F("FORWARD"));
             if (!Navigator::moveForwardCell(fwdSpeed, true)) {
                 running = false;
