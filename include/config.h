@@ -47,7 +47,7 @@
 // SAKLAR KONTROL SERIAL MONITOR & LED1 (PA11):
 // - Set true  : Aktifkan Serial Monitor lewat kabel USB untuk debugging (COM port aktif normal)
 // - Set false : Matikan Serial Monitor; USB dilepas penuh sehingga PA11 berfungsi sebagai LED1
-#define ENABLE_SERIAL_DEBUG false
+#define ENABLE_SERIAL_DEBUG true
 
 // SAKLAR KONTROL STATUS LED (LED1 PA11 & LED2 PB3):
 // - Set true  : Aktifkan LED kanan & kiri untuk indikator visual mode dan deteksi dinding
@@ -156,9 +156,9 @@
 #define DEFAULT_WALL_SIDE_THRESHOLD    600   // Threshold dinding samping (kebal cahaya lampu samping)
 
 // Ambang Presisi Jarak Dinding Depan Sebelum Berbelok (Ideal: Pas untuk radius putar tanpa mundur)
-#define WALL_FRONT_STOP_ADC            1150   // Target henti sensor depan (~30-33mm dari dinding, pas & tidak perlu mundur)
-#define WALL_FRONT_TOO_CLOSE_ADC       1450   // Batas jika terlalu mepet ekstrem (hanya mikro-koreksi)
-#define WALL_FRONT_TOO_FAR_ADC         600   // Batas jika berhenti terlalu jauh dari dinding depan
+#define WALL_FRONT_STOP_ADC            950    // Target henti sensor depan (~42-45mm dari dinding, aman anti-tabrak & pas radius putar)
+#define WALL_FRONT_TOO_CLOSE_ADC       1200   // Batas jika terlalu mepet (pengaman darurat rem)
+#define WALL_FRONT_TOO_FAR_ADC         650    // Batas jika berhenti terlalu jauh dari dinding depan
 
 // --- MOTION SPEEDS & TUNING CONSTANTS (STRICT FLOOR: TIDAK PERNAH < 150 PWM) ---
 // Mode 3: Scan / Exploration Mode

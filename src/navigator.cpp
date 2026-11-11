@@ -144,15 +144,15 @@ bool Navigator::sprintDistance(float targetDistance, float cruiseSpeed, bool bra
         // di awal/tengah sel tidak menghentikan langkah robot secara prematur!
         if (currentDistance > 80.0f) {
             if (Sensors::hasWallFront() || irData.frontCenter >= WALL_FRONT_STOP_ADC) {
-                // Berhenti tepat di titik tengah sel (~30mm dari dinding depan)
-                if (irData.frontCenter >= WALL_FRONT_STOP_ADC || (targetDistance - currentDistance) < 18.0f) {
+                // Berhenti tepat di titik aman sebelum dinding depan (~42-45mm)
+                if (irData.frontCenter >= WALL_FRONT_STOP_ADC || (targetDistance - currentDistance) < 22.0f) {
                     break;
                 }
             }
             // Pengaman Darurat Tabrakan Depan
-            if (irData.frontCenter > (WALL_FRONT_TOO_CLOSE_ADC + 200)) {
+            if (irData.frontCenter >= WALL_FRONT_TOO_CLOSE_ADC) {
                 Motors::brake();
-                delay(20);
+                delay(30);
                 break;
             }
         }
@@ -170,8 +170,8 @@ bool Navigator::sprintDistance(float targetDistance, float cruiseSpeed, bool bra
         } else if (brakeAtEnd) {
             float s = remaining / rampDownDist;
             // Jika ada dinding depan, bantu perlambatan halus berdasarkan jarak sensor depan menuju WALL_FRONT_STOP_ADC
-            if (Sensors::hasWallFront() && irData.frontCenter > (WALL_FRONT_STOP_ADC - 350)) {
-                float sFront = (float)(WALL_FRONT_STOP_ADC - irData.frontCenter) / 350.0f;
+            if (Sensors::hasWallFront() && irData.frontCenter > (WALL_FRONT_STOP_ADC - 250)) {
+                float sFront = (float)(WALL_FRONT_STOP_ADC - irData.frontCenter) / 250.0f;
                 if (sFront < s) s = sFront;
             }
             s = constrain(s, 0.0f, 1.0f);
@@ -249,7 +249,7 @@ bool Navigator::sprintDistance(float targetDistance, float cruiseSpeed, bool bra
 
     if (brakeAtEnd) {
         Motors::brake();
-        delay(10);
+        delay(40);
         Motors::coast();
     }
     return true;
@@ -744,9 +744,12 @@ bool Navigator::turn90(bool turnLeft, float turnSpeed) {
             // Belok Kiri (CCW): Roda kiri mundur (-), roda kanan maju (+)
             uint16_t frontProximity = (irTurn.frontRight > irTurn.frontCenter) ? irTurn.frontRight : irTurn.frontCenter;
 
-            if (frontProximity > 1200) {
-                // Dinding depan dekat: batasi dorongan roda kanan maju ke minimum 150 PWM,
-                // roda kiri tetap berputar mundur -pSpeed bertenaga penuh!
+            if (frontProximity >= (WALL_FRONT_STOP_ADC + 150)) {
+                // Sangat mepet dinding depan saat memutar: roda kanan diam (0 PWM), roda kiri tarik mundur bertenaga!
+                leftPwmTarget  = -pSpeed;
+                rightPwmTarget = 0.0f;
+            } else if (frontProximity >= WALL_FRONT_STOP_ADC) {
+                // Dinding depan mendekat: batasi dorongan roda kanan maju ke minimum 150 PWM
                 leftPwmTarget  = -pSpeed;
                 rightPwmTarget = 150.0f;
             } else {
@@ -757,9 +760,12 @@ bool Navigator::turn90(bool turnLeft, float turnSpeed) {
             // Belok Kanan (CW): Roda kiri maju (+), roda kanan mundur (-)
             uint16_t frontProximity = (irTurn.frontLeft > irTurn.frontCenter) ? irTurn.frontLeft : irTurn.frontCenter;
 
-            if (frontProximity > 1200) {
-                // Dinding depan dekat: batasi dorongan roda kiri maju ke minimum 150 PWM,
-                // roda kanan tetap berputar mundur -pSpeed bertenaga penuh!
+            if (frontProximity >= (WALL_FRONT_STOP_ADC + 150)) {
+                // Sangat mepet dinding depan saat memutar: roda kiri diam (0 PWM), roda kanan tarik mundur bertenaga!
+                leftPwmTarget  = 0.0f;
+                rightPwmTarget = -pSpeed;
+            } else if (frontProximity >= WALL_FRONT_STOP_ADC) {
+                // Dinding depan mendekat: batasi dorongan roda kiri maju ke minimum 150 PWM
                 leftPwmTarget  = 150.0f;
                 rightPwmTarget = -pSpeed;
             } else {
