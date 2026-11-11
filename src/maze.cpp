@@ -12,6 +12,7 @@ static const int8_t DY[4] = {1, 0, -1, 0};
 
 uint8_t Maze::walls[MAZE_WIDTH][MAZE_HEIGHT];
 uint16_t Maze::dist[MAZE_WIDTH][MAZE_HEIGHT];
+bool Maze::visited[MAZE_WIDTH][MAZE_HEIGHT];
 uint8_t Maze::posX = 0;
 uint8_t Maze::posY = 0;
 Direction Maze::currentHeading = DIR_NORTH;
@@ -61,6 +62,7 @@ void Maze::resetWalls() {
     for (uint8_t x = 0; x < MAZE_WIDTH; x++) {
         for (uint8_t y = 0; y < MAZE_HEIGHT; y++) {
             walls[x][y] = 0;
+            visited[x][y] = false;
             // Outer perimeter walls
             if (y == MAZE_HEIGHT - 1) walls[x][y] |= (1 << DIR_NORTH);
             if (x == MAZE_WIDTH - 1)  walls[x][y] |= (1 << DIR_EAST);
@@ -70,6 +72,7 @@ void Maze::resetWalls() {
     }
     // Start cell (0, 0) East wall
     setWall(0, 0, DIR_EAST);
+    visited[0][0] = true;
     mazeMapped = false;
 }
 
@@ -113,6 +116,7 @@ bool Maze::isMapped() {
 }
 
 void Maze::updateWalls(bool frontWall, bool leftWall, bool rightWall) {
+    visited[posX][posY] = true;
     Direction frontDir = currentHeading;
     Direction leftDir  = (Direction)((currentHeading + 3) % 4);
     Direction rightDir = (Direction)((currentHeading + 1) % 4);
@@ -165,8 +169,9 @@ void Maze::updateDistances() {
                 int8_t nx = cur.x + DX[d];
                 int8_t ny = cur.y + DY[d];
                 if (nx >= 0 && nx < MAZE_WIDTH && ny >= 0 && ny < MAZE_HEIGHT) {
-                    if (dist[nx][ny] > curDist + 1) {
-                        dist[nx][ny] = curDist + 1;
+                    uint16_t stepCost = (currentTarget == TARGET_START && !visited[nx][ny]) ? 100 : 1;
+                    if (dist[nx][ny] > curDist + stepCost) {
+                        dist[nx][ny] = curDist + stepCost;
                         queue[tail++] = {(uint8_t)nx, (uint8_t)ny};
                     }
                 }
@@ -182,6 +187,11 @@ uint8_t Maze::getWallByte(uint8_t x, uint8_t y) {
 
 bool Maze::hasWallAt(uint8_t x, uint8_t y, Direction dir) {
     return hasWall(x, y, dir);
+}
+
+bool Maze::isVisited(uint8_t x, uint8_t y) {
+    if (x >= MAZE_WIDTH || y >= MAZE_HEIGHT) return false;
+    return visited[x][y];
 }
 
 Action Maze::getNextAction() {
@@ -213,7 +223,8 @@ Action Maze::getNextAction() {
                         if (diff == 1 || diff == 3) turnPenalty = TURN_PENALTY_COST;
                         else turnPenalty = TURN_PENALTY_COST * 2;
                     }
-                    uint32_t totalCost = ((uint32_t)dist[nx][ny] * 10) + turnPenalty;
+                    uint32_t unvisitedPenalty = (currentTarget == TARGET_START && !visited[nx][ny]) ? 1000 : 0;
+                    uint32_t totalCost = ((uint32_t)dist[nx][ny] * 10) + turnPenalty + unvisitedPenalty;
                     if (totalCost < bestCost) {
                         bestCost = totalCost;
                         bestDir = d;
@@ -256,6 +267,7 @@ void Maze::applyAction(Action action) {
             if (nx >= 0 && nx < MAZE_WIDTH && ny >= 0 && ny < MAZE_HEIGHT) {
                 posX = (uint8_t)nx;
                 posY = (uint8_t)ny;
+                visited[posX][posY] = true;
             }
             break;
         }
@@ -515,6 +527,7 @@ bool Maze::loadFromFlash() {
 
     flashPtr++; // Skip magic
     memcpy(walls, flashPtr, sizeof(walls));
+    memset(visited, 1, sizeof(visited));
     mazeMapped = true;
     return true;
 }

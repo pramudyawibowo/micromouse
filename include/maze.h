@@ -89,16 +89,18 @@ public:
     static void printMaze();
     static uint8_t getWallByte(uint8_t x, uint8_t y);
     static bool hasWallAt(uint8_t x, uint8_t y, Direction dir);
+    static void setWall(uint8_t x, uint8_t y, Direction dir);
+    static bool isVisited(uint8_t x, uint8_t y);
 
 private:
     static uint8_t walls[MAZE_WIDTH][MAZE_HEIGHT];
     static uint16_t dist[MAZE_WIDTH][MAZE_HEIGHT];
+    static bool visited[MAZE_WIDTH][MAZE_HEIGHT];
     static uint8_t posX;
     static uint8_t posY;
     static Direction currentHeading;
     static MazeTarget currentTarget;
     static bool mazeMapped;
 
-    static void setWall(uint8_t x, uint8_t y, Direction dir);
     static bool hasWall(uint8_t x, uint8_t y, Direction dir);
 };

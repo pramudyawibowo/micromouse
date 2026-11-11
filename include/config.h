@@ -153,7 +153,7 @@
 // Ambang batas kebal cahaya ruangan (Ambient Light Rejection):
 // Cahaya lampu ruangan normal (150-450 ADC) diabaikan 100%, hanya mendeteksi pantulan dinding fisik nyata (>600-800 ADC)
 #define DEFAULT_WALL_FRONT_THRESHOLD   750   // Ambang dinding depan sel saat ini (kebal gangguan cahaya/bayangan)
-#define DEFAULT_WALL_SIDE_THRESHOLD    600   // Threshold dinding samping (kebal cahaya lampu samping)
+#define DEFAULT_WALL_SIDE_THRESHOLD    450   // Threshold dinding samping (responsif di lorong, aman dari noise cahaya <300 ADC)
 
 // Ambang Presisi Jarak Dinding Depan Sebelum Berbelok (Ideal: Pas untuk radius putar tanpa mundur)
 #define WALL_FRONT_STOP_ADC            950    // Target henti sensor depan (~42-45mm dari dinding, aman anti-tabrak & pas radius putar)

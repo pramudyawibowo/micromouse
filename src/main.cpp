@@ -281,6 +281,7 @@ void runScanMazeStep() {
 
         // Beralih target Floodfill ke Start (0,0)
         Maze::setTarget(TARGET_START);
+        lapStartTime = millis();
         delay(800);
         return;
     }
@@ -341,6 +342,61 @@ void runScanMazeStep() {
 
     // 4. Tentukan langkah optimal dari Floodfill
     Action next = Maze::getNextAction();
+
+    // ==============================================================================
+    // SENSOR-BASED REALITY & CORRIDOR GUARD:
+    // Sensor IR fisik selalu menjadi otoritas tertinggi atas kondisi lorong nyata.
+    // Mencegah robot berbelok prematur di tengah lorong atau menabrak dinding nyata:
+    // ==============================================================================
+
+    // 1. KUNCI LORONG LURUS (CORRIDOR LOCK):
+    // Jika dinding samping (kiri & kanan) ada, dan lorong depan masih terbuka:
+    // Robot berada di dalam lorong lurus dan BELUM SAMPAI di ujung lorong!
+    // Wajib terus maju sampai ke ujung lorong atau sampai ada persimpangan nyata!
+    if (left && right && !front) {
+        if (next != ACTION_FORWARD) {
+            Serial.println(F("[CORRIDOR GUARD] Di dalam lorong lurus (kiri/kanan dinding, depan buka) -> Lanjut MAJU!"));
+            next = ACTION_FORWARD;
+        }
+    }
+
+    // 2. ANTI-TABRAK DINDING FISIK KIRI:
+    // Jika rencana aksi belok kiri padahal sensor membaca ada dinding fisik nyata di kiri:
+    // Batalkan belok kiri, pasang dinding di peta, dan evaluasi ulang!
+    if (next == ACTION_TURN_LEFT && left) {
+        Serial.println(F("[SENSOR GUARD] Dinding fisik kiri terdeteksi! Batalkan belok kiri."));
+        Maze::setWall(Maze::getX(), Maze::getY(), (Direction)((Maze::getHeading() + 3) % 4));
+        Maze::updateDistances();
+        next = Maze::getNextAction();
+        if (next == ACTION_TURN_LEFT) {
+            next = (!front) ? ACTION_FORWARD : ((!right) ? ACTION_TURN_RIGHT : ACTION_TURN_AROUND);
+        }
+    }
+
+    // 3. ANTI-TABRAK DINDING FISIK KANAN:
+    // Jika rencana aksi belok kanan padahal sensor membaca ada dinding fisik nyata di kanan:
+    // Batalkan belok kanan, pasang dinding di peta, dan evaluasi ulang!
+    if (next == ACTION_TURN_RIGHT && right) {
+        Serial.println(F("[SENSOR GUARD] Dinding fisik kanan terdeteksi! Batalkan belok kanan."));
+        Maze::setWall(Maze::getX(), Maze::getY(), (Direction)((Maze::getHeading() + 1) % 4));
+        Maze::updateDistances();
+        next = Maze::getNextAction();
+        if (next == ACTION_TURN_RIGHT) {
+            next = (!front) ? ACTION_FORWARD : ((!left) ? ACTION_TURN_LEFT : ACTION_TURN_AROUND);
+        }
+    }
+
+    // 4. ANTI-TABRAK DINDING FISIK DEPAN:
+    // Jika rencana aksi maju padahal sensor membaca ada dinding fisik nyata di depan:
+    if (next == ACTION_FORWARD && front) {
+        Serial.println(F("[SENSOR GUARD] Dinding fisik depan terdeteksi! Cari arah belokan terbuka."));
+        Maze::setWall(Maze::getX(), Maze::getY(), Maze::getHeading());
+        Maze::updateDistances();
+        next = Maze::getNextAction();
+        if (next == ACTION_FORWARD) {
+            next = (!left) ? ACTION_TURN_LEFT : ((!right) ? ACTION_TURN_RIGHT : ACTION_TURN_AROUND);
+        }
+    }
 
     // Kecepatan tenang: Saat pulang ke start gunakan RETURN_SPEED (80 PWM), bukan kecepatan penuh!
     float fwdSpeed  = (Maze::getTarget() == TARGET_START) ? RETURN_SPEED_FORWARD : SCAN_SPEED_FORWARD;
