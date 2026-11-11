@@ -123,18 +123,16 @@ bool Navigator::sprintDistance(float targetDistance, float cruiseSpeed, bool bra
         lastLeftAdc = (float)irData.left;
         lastRightAdc = (float)irData.right;
 
-        // 2. Deteksi Tabrakan & Motor Mogok (Anti-Stall Crash Failsafe)
+        // 2. Deteksi Tabrakan & Motor Mogok (Anti-Stall Crash Guard)
         if (elapsed > 400 && cruiseSpeed > 60.0f) {
             if (fabs(currentDistance - lastProgressDist) >= STALL_MIN_PROGRESS_MM) {
                 lastProgressDist = currentDistance;
                 lastProgressTime = millis();
             } else if ((millis() - lastProgressTime) > STALL_TIMEOUT_MS) {
-                // Roda terhambat/menabrak saat motor aktif -> potong daya darurat
+                // Jangan potong daya total: brake dan lanjutkan navigasi agar scan tidak mogok
                 Motors::brake();
-                Motors::disable();
-                Buzzer::playAlert();
-                Serial.println(F("\n[FAILSAFE] TABRAKAN / MOTOR STALL TERDETEKSI! Daya motor diputus."));
-                return false;
+                Serial.println(F("\n[WARN] Kemajuan sel terhambat, melangkah ke evaluasi sel."));
+                break;
             }
         } else {
             lastProgressTime = millis();
@@ -142,17 +140,21 @@ bool Navigator::sprintDistance(float targetDistance, float cruiseSpeed, bool bra
         }
 
         // Safety check & center-lock: jika ada dinding depan
-        if (Sensors::hasWallFront() || irData.frontCenter >= WALL_FRONT_STOP_ADC) {
-            // Berhenti tepat di titik tengah sel (~25-30mm dari dinding depan)
-            if (irData.frontCenter >= WALL_FRONT_STOP_ADC || (targetDistance - currentDistance) < 18.0f) {
+        // HANYA aktif setelah robot menempuh minimal separuh sel (> 80mm) agar gangguan cahaya/bayangan
+        // di awal/tengah sel tidak menghentikan langkah robot secara prematur!
+        if (currentDistance > 80.0f) {
+            if (Sensors::hasWallFront() || irData.frontCenter >= WALL_FRONT_STOP_ADC) {
+                // Berhenti tepat di titik tengah sel (~30mm dari dinding depan)
+                if (irData.frontCenter >= WALL_FRONT_STOP_ADC || (targetDistance - currentDistance) < 18.0f) {
+                    break;
+                }
+            }
+            // Pengaman Darurat Tabrakan Depan
+            if (irData.frontCenter > (WALL_FRONT_TOO_CLOSE_ADC + 200)) {
+                Motors::brake();
+                delay(20);
                 break;
             }
-        }
-        // Pengaman Darurat Tabrakan Depan pada High-Speed Sprint Attack
-        if (irData.frontCenter > (WALL_FRONT_TOO_CLOSE_ADC + 200)) {
-            Motors::brake();
-            delay(20);
-            break;
         }
 
         // 3. Smooth Velocity Profile

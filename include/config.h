@@ -110,10 +110,11 @@
 #define MAZE_HEIGHT             4     // Tinggi baris labirin (Y: 0 sampai MAZE_HEIGHT - 1)
 
 // Koordinat Area Kotak Finish / Goal (Inklusif: MIN <= Posisi <= MAX)
-#define MAZE_GOAL_MIN_X         1     // Batas minimum kolom X finish
-#define MAZE_GOAL_MAX_X         2     // Batas maksimum kolom X finish
-#define MAZE_GOAL_MIN_Y         1     // Batas minimum baris Y finish
-#define MAZE_GOAL_MAX_Y         2     // Batas maksimum baris Y finish
+// Diatur di pojok terjauh (2..3, 2..3) agar robot tidak berhenti prematur di sel awal
+#define MAZE_GOAL_MIN_X         2     // Batas minimum kolom X finish (Grid 4x4: pojok 2..3)
+#define MAZE_GOAL_MAX_X         3     // Batas maksimum kolom X finish
+#define MAZE_GOAL_MIN_Y         2     // Batas minimum baris Y finish
+#define MAZE_GOAL_MAX_Y         3     // Batas maksimum baris Y finish
 
 // ==============================================================================
 // ENCODER & MOTOR HARDWARE CONFIGURATION (DUAL-MODE N20 SUPPORT)
@@ -141,9 +142,10 @@
 #define FLASH_MAZE_MAGIC       (0xA55A0000UL | ((uint32_t)(MAZE_WIDTH) << 8) | (uint32_t)(MAZE_HEIGHT))
 
 // Wall Detection Thresholds (12-bit ADC: 0 - 4095)
-// Ambang batas dinding sel aktif: mengabaikan dinding jauh di sel berikutnya (>120mm), hanya mendeteksi dinding sel saat ini (<80mm)
-#define DEFAULT_WALL_FRONT_THRESHOLD   320   // Ambang dinding depan sel saat ini (abaikan pantulan sel seberang)
-#define DEFAULT_WALL_SIDE_THRESHOLD    320   // Threshold dinding samping (kiri/kanan) responsif
+// Ambang batas kebal cahaya ruangan (Ambient Light Rejection):
+// Cahaya lampu ruangan normal (150-450 ADC) diabaikan 100%, hanya mendeteksi pantulan dinding fisik nyata (>600-800 ADC)
+#define DEFAULT_WALL_FRONT_THRESHOLD   750   // Ambang dinding depan sel saat ini (kebal gangguan cahaya/bayangan)
+#define DEFAULT_WALL_SIDE_THRESHOLD    600   // Threshold dinding samping (kebal cahaya lampu samping)
 
 // Ambang Presisi Jarak Dinding Depan Sebelum Berbelok (Ideal: Pas untuk radius putar tanpa mundur)
 #define WALL_FRONT_STOP_ADC            1150   // Target henti sensor depan (~30-33mm dari dinding, pas & tidak perlu mundur)
