@@ -55,15 +55,16 @@ IRSensorData Sensors::getFiltered() {
 }
 
 bool Sensors::hasWallFront() {
-    // Dinding depan terdeteksi jika:
-    // 1. Sensor tengah 0° (PA7) melampaui frontThreshold (~220 ADC), ATAU
-    // 2. Sensor tengah mendeteksi pantulan awal (>= 160) DAN salah satu sensor serong 45°
-    //    juga menangkap pantulan dinding di atas sideThreshold.
+    // Dinding depan sel saat ini terdeteksi jika:
+    // 1. Sensor tengah 0° (PA7) melampaui frontThreshold (~320 ADC, jarak <80mm)
+    // 2. Sensor tengah mendeteksi pantulan (> 260) DAN kedua sensor serong 45°
+    //    juga menangkap pantulan dinding depan di atas sideThreshold.
     if (filteredData.frontCenter > frontThreshold) {
         return true;
     }
-    if (filteredData.frontCenter >= 160 && 
-        (filteredData.frontLeft > sideThreshold || filteredData.frontRight > sideThreshold)) {
+    if (filteredData.frontCenter >= (frontThreshold - 60) && 
+        filteredData.frontLeft > sideThreshold && 
+        filteredData.frontRight > sideThreshold) {
         return true;
     }
     return false;

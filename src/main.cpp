@@ -212,18 +212,19 @@ void runDiagnostics() {
 void runWallFollower() {
     Sensors::update();
     IMU::update();
+    IRSensorData ir = Sensors::getFiltered();
 
-    // Cek emergency stop di setiap langkah wall follower
     if (UI::checkEmergencyStop()) {
         Navigator::emergencyStop();
         running = false;
         return;
     }
 
-    if (Sensors::hasWallFront()) {
+    // Hanya berhenti & belok jika dinding depan sudah benar-benar berada di dekat moncong (~30-35mm)
+    if (Sensors::hasWallFront() && ir.frontCenter >= (WALL_FRONT_STOP_ADC - 150)) {
         Navigator::emergencyStop();
         Buzzer::beep(1500, 40);
-        delay(60);
+        delay(40);
 
         // Pastikan ruang bebas moncong: otomatis mundur jika terlalu dekat dinding depan
         Navigator::ensureFrontWallClearance();
@@ -362,36 +363,6 @@ void runScanMazeStep() {
 
     switch (next) {
         case ACTION_FORWARD:
-            // Cek proteksi: jika di depan ternyata ada dinding, JANGAN paksa maju!
-            // Mundur cepat ke zona aman lalu langsung putuskan arah belokan (tidak boleh fluktuasi/stuck!)
-            if (Sensors::hasWallFront()) {
-                Serial.println(F("[PROTEKSI] Dinding depan terdeteksi! Mundur cepat ke ruang bebas & langsung belok..."));
-                Navigator::ensureFrontWallClearance();
-                Maze::updateWalls(true, Sensors::hasWallLeft(), Sensors::hasWallRight());
-
-                // Langsung eksekusi belokan alternatif tanpa delay atau hunting
-                if (!Sensors::hasWallLeft()) {
-                    Serial.println(F("PILIH ALTERNATIF: TURN LEFT 90 -> FORWARD"));
-                    if (!Navigator::turn90(true, turnSpeed)) { running = false; return; }
-                    Maze::applyAction(ACTION_TURN_LEFT);
-                    if (!Navigator::moveForwardCell(fwdSpeed, true)) { running = false; return; }
-                    Maze::applyAction(ACTION_FORWARD);
-                } else if (!Sensors::hasWallRight()) {
-                    Serial.println(F("PILIH ALTERNATIF: TURN RIGHT 90 -> FORWARD"));
-                    if (!Navigator::turn90(false, turnSpeed)) { running = false; return; }
-                    Maze::applyAction(ACTION_TURN_RIGHT);
-                    if (!Navigator::moveForwardCell(fwdSpeed, true)) { running = false; return; }
-                    Maze::applyAction(ACTION_FORWARD);
-                } else {
-                    Serial.println(F("PILIH ALTERNATIF: TURN 180 -> FORWARD"));
-                    if (!Navigator::turn180(turnSpeed)) { running = false; return; }
-                    Maze::applyAction(ACTION_TURN_AROUND);
-                    if (!Navigator::moveForwardCell(fwdSpeed, true)) { running = false; return; }
-                    Maze::applyAction(ACTION_FORWARD);
-                }
-                break;
-            }
-
             Serial.println(F("FORWARD"));
             if (!Navigator::moveForwardCell(fwdSpeed, true)) {
                 running = false;

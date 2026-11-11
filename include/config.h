@@ -141,13 +141,13 @@
 #define FLASH_MAZE_MAGIC       (0xA55A0000UL | ((uint32_t)(MAZE_WIDTH) << 8) | (uint32_t)(MAZE_HEIGHT))
 
 // Wall Detection Thresholds (12-bit ADC: 0 - 4095)
-// Default threshold aman untuk deteksi dinding labirin standar
-#define DEFAULT_WALL_FRONT_THRESHOLD   200   // Ambang peka deteksi dinding depan (pasti tembus saat ada dinding depan)
+// Ambang batas dinding sel aktif: mengabaikan dinding jauh di sel berikutnya (>120mm), hanya mendeteksi dinding sel saat ini (<80mm)
+#define DEFAULT_WALL_FRONT_THRESHOLD   320   // Ambang dinding depan sel saat ini (abaikan pantulan sel seberang)
 #define DEFAULT_WALL_SIDE_THRESHOLD    320   // Threshold dinding samping (kiri/kanan) responsif
 
 // Ambang Presisi Jarak Dinding Depan Sebelum Berbelok
-#define WALL_FRONT_STOP_ADC            600   // Target henti sensor depan (~30-35mm dari dinding, ideal untuk radius putar moncong)
-#define WALL_FRONT_TOO_CLOSE_ADC       750   // Batas jika terlalu mepet (otomatis mundur cepat ke zona aman putar)
+#define WALL_FRONT_STOP_ADC            650   // Target henti sensor depan (~30-35mm dari dinding, ideal untuk radius putar moncong)
+#define WALL_FRONT_TOO_CLOSE_ADC       850   // Batas jika terlalu mepet (otomatis mundur cepat ke zona aman putar)
 #define WALL_FRONT_TOO_FAR_ADC         300   // Batas jika berhenti terlalu jauh dari dinding depan
 
 // --- MOTION SPEEDS & TUNING CONSTANTS (GESIT, LINCAH, & BERTENAGA) ---
