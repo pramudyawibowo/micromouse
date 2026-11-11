@@ -146,14 +146,14 @@
 #define DEFAULT_WALL_SIDE_THRESHOLD    320   // Threshold dinding samping (kiri/kanan) responsif
 
 // Ambang Presisi Jarak Dinding Depan Sebelum Berbelok
-#define WALL_FRONT_STOP_ADC            650   // Target henti sensor depan (~30-35mm dari dinding, ideal untuk radius putar moncong)
-#define WALL_FRONT_TOO_CLOSE_ADC       850   // Batas jika terlalu mepet (otomatis mundur cepat ke zona aman putar)
-#define WALL_FRONT_TOO_FAR_ADC         300   // Batas jika berhenti terlalu jauh dari dinding depan
+#define WALL_FRONT_STOP_ADC            1350   // Target henti sensor depan (~22-25mm dari dinding, dekat & presisi)
+#define WALL_FRONT_TOO_CLOSE_ADC       1600   // Batas jika terlalu mepet (otomatis snapback clearance ke zona aman)
+#define WALL_FRONT_TOO_FAR_ADC         600   // Batas jika berhenti terlalu jauh dari dinding depan
 
-// --- MOTION SPEEDS & TUNING CONSTANTS (GESIT, LINCAH, & BERTENAGA) ---
+// --- MOTION SPEEDS & TUNING CONSTANTS (STRICT FLOOR: TIDAK PERNAH < 150 PWM) ---
 // Mode 3: Scan / Exploration Mode
 #define SCAN_SPEED_FORWARD     185.0f  // PWM kecepatan maju saat scan (gesit, lincah & bertenaga)
-#define SCAN_SPEED_TURN        155.0f  // PWM belok pivot 90/180 derajat di tempat (cepat, presisi & tegas)
+#define SCAN_SPEED_TURN        170.0f  // PWM belok pivot 90/180 derajat di tempat (cepat, bertenaga & anti-stall)
 
 // Mode 4: Fast Run Mode (Fokus: Jalur Tercepat, High Speed Sprint & Slalom Mengular)
 #define FAST_RUN_SPRINT_SPEED       240.0f  // PWM sprint kecepatan tinggi pada lintasan lurus multi-sel
@@ -163,7 +163,7 @@
 
 // Return-to-Start Speed (Kecepatan saat kembali dari Finish ke Start (0,0))
 #define RETURN_SPEED_FORWARD        185.0f  // PWM kecepatan maju saat kembali ke Start
-#define RETURN_SPEED_TURN           155.0f  // PWM kecepatan belok saat kembali ke Start
+#define RETURN_SPEED_TURN           170.0f  // PWM kecepatan belok saat kembali ke Start
 
 // ==============================================================================
 // CASCADED PID / PD CONTROLLER GAINS (ANTI-WOBBLE & ROTATIONAL DAMPING)
@@ -192,15 +192,15 @@
 // ADVANCED COMPETITION TUNING CONSTANTS (7 FITUR UNGGULAN MICROMOUSE)
 // ==============================================================================
 // 1. Fast Run Speed Tiers (Tingkat Kecepatan Fast Run, dipilih via SW3)
-#define SPEED_TIER_SAFE             1       // Tier 1: Aman & Stabil (180 PWM sprint, 140 PWM slalom)
+#define SPEED_TIER_SAFE             1       // Tier 1: Aman & Stabil (180 PWM sprint, 160 PWM slalom)
 #define SPEED_TIER_AGGRESSIVE       2       // Tier 2: Agresif Cepat (220 PWM sprint, 170 PWM slalom) - Default
 #define SPEED_TIER_INSANE           3       // Tier 3: Maksimum Serang (250 PWM sprint, 195 PWM slalom)
 
-// Kecepatan Tier 1 (Safe)
+// Kecepatan Tier 1 (Safe - Semua Kecepatan >= 150 PWM)
 #define TIER1_SPRINT_SPEED          180.0f
-#define TIER1_CURVE_SPEED           140.0f
+#define TIER1_CURVE_SPEED           160.0f
 #define TIER1_DIAG_SPRINT_SPEED     185.0f
-#define TIER1_DIAG_CURVE_SPEED      135.0f
+#define TIER1_DIAG_CURVE_SPEED      155.0f
 
 // Kecepatan Tier 2 (Aggressive - Default)
 #define TIER2_SPRINT_SPEED          220.0f

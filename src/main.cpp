@@ -884,9 +884,9 @@ void handleSerialCommands() {
         }
         Maze::printMaze();
     } else if (cmd == "motor" || cmd == "test") {
-        Serial.println(F("\n--- TES MOTOR DRV8833 (MAJU 1.5 DETIK) ---"));
+        Serial.println(F("\n--- TES MOTOR DRV8833 (MAJU 1.5 DETIK @ 160 PWM) ---"));
         Motors::enable();
-        Motors::setSpeeds(120, 120);
+        Motors::setSpeeds(160, 160);
         delay(1500);
         Motors::brake();
         delay(50);

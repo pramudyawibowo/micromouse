@@ -37,13 +37,14 @@ bool Navigator::moveForwardCell(float targetSpeed, bool brakeAtEnd) {
 // - Loop 2: Kemudi / Wall Centering PD + Peredam Rotasi Aktif Gyro Z (Anti-Wobble)
 // ==============================================================================
 bool Navigator::sprintDistance(float targetDistance, float cruiseSpeed, bool brakeAtEnd) {
+    if (cruiseSpeed < 150.0f) cruiseSpeed = 150.0f; // STRICT FLOOR: Kecepatan maju minimal 150 PWM
     Motors::enable();
     Encoders::reset();
     IMU::update();
     float startYaw = IMU::getYaw();
 
     float currentDistance = 0.0f;
-    const float minSpeed = (cruiseSpeed < 100.0f) ? 55.0f : 80.0f;
+    const float minSpeed = 150.0f; // STRICT FLOOR: Kecepatan tidak boleh < 150 PWM
 
     // Parameter navigasi berbasis waktu untuk motor N20 tanpa encoder
     uint32_t tStart = millis();
@@ -235,8 +236,8 @@ bool Navigator::sprintDistance(float targetDistance, float cruiseSpeed, bool bra
         float maxTotalSteer = (cruiseSpeed > 190.0f) ? 55.0f : 35.0f;
         float totalSteer = constrain(gyroSteer + wallTrim, -maxTotalSteer, maxTotalSteer);
 
-        int16_t leftPwm  = (int16_t)constrain(speed + totalSteer, 25.0f, 255.0f);
-        int16_t rightPwm = (int16_t)constrain(speed - totalSteer, 25.0f, 255.0f);
+        int16_t leftPwm  = (int16_t)constrain(speed + totalSteer, 150.0f, 255.0f);
+        int16_t rightPwm = (int16_t)constrain(speed - totalSteer, 150.0f, 255.0f);
 
         Motors::setSpeeds(leftPwm, rightPwm);
 
@@ -258,6 +259,7 @@ bool Navigator::sprintDistance(float targetDistance, float cruiseSpeed, bool bra
 // menjaga momentum translasi tinggi pada Mode 4 (Fast Run).
 // ==============================================================================
 bool Navigator::smoothCurveTurn(bool turnLeft, float baseSpeed) {
+    if (baseSpeed < 170.0f) baseSpeed = 170.0f; // STRICT FLOOR: Kecepatan kurva minimal 170 PWM
     Motors::enable();
     IMU::update();
     float startYaw = IMU::getYaw();
@@ -267,10 +269,11 @@ bool Navigator::smoothCurveTurn(bool turnLeft, float baseSpeed) {
     while (targetYaw < -180.0f) targetYaw += 360.0f;
 
     // Kinematika roda diferensial untuk belokan mengular (R = 90mm, W = 82mm)
-    // R_outer = 131mm, R_inner = 49mm -> ratio = 49 / 131 ~= 0.38
-    const float innerRatio = 0.38f;
+    // Roda inner tetap diberi daya minimum 150 PWM agar motor N20 tidak mogok
+    const float innerRatio = 0.45f;
     float outerSpeed = baseSpeed;
     float innerSpeed = baseSpeed * innerRatio;
+    if (innerSpeed < 150.0f) innerSpeed = 150.0f; // STRICT FLOOR: MIN 150 PWM
 
     uint32_t tStart = millis();
     uint32_t lastLoop = millis();
@@ -339,13 +342,13 @@ bool Navigator::smoothCurveTurn(bool turnLeft, float baseSpeed) {
 
         if (turnLeft) {
             // Belok Kiri: Roda Kanan adalah Outer (lebih cepat), Roda Kiri adalah Inner
-            int16_t leftPwm = (int16_t)constrain(innerSpeed - gyroTrim - opticalTrim, 30.0f, baseSpeed);
-            int16_t rightPwm = (int16_t)constrain(outerSpeed + opticalTrim * 0.5f, 30.0f, 255.0f);
+            int16_t leftPwm = (int16_t)constrain(innerSpeed - gyroTrim - opticalTrim, 150.0f, baseSpeed);
+            int16_t rightPwm = (int16_t)constrain(outerSpeed + opticalTrim * 0.5f, 150.0f, 255.0f);
             Motors::setSpeeds(leftPwm, rightPwm);
         } else {
             // Belok Kanan: Roda Kiri adalah Outer (lebih cepat), Roda Kanan adalah Inner
-            int16_t leftPwm = (int16_t)constrain(outerSpeed + opticalTrim * 0.5f, 30.0f, 255.0f);
-            int16_t rightPwm = (int16_t)constrain(innerSpeed + gyroTrim - opticalTrim, 30.0f, baseSpeed);
+            int16_t leftPwm = (int16_t)constrain(outerSpeed + opticalTrim * 0.5f, 150.0f, 255.0f);
+            int16_t rightPwm = (int16_t)constrain(innerSpeed + gyroTrim - opticalTrim, 150.0f, baseSpeed);
             Motors::setSpeeds(leftPwm, rightPwm);
         }
 
@@ -365,6 +368,7 @@ bool Navigator::smoothCurveTurn(bool turnLeft, float baseSpeed) {
 // momentum translasi agar transisi dari ortogonal ke diagonal sangat halus (fluid).
 // ==============================================================================
 bool Navigator::smoothCurveTurn45(bool turnLeft, float baseSpeed) {
+    if (baseSpeed < 165.0f) baseSpeed = 165.0f; // STRICT FLOOR: Kecepatan kurva 45 minimal 165 PWM
     Motors::enable();
     IMU::update();
     float startYaw = IMU::getYaw();
@@ -377,6 +381,7 @@ bool Navigator::smoothCurveTurn45(bool turnLeft, float baseSpeed) {
     const float innerRatio = 0.55f;
     float outerSpeed = baseSpeed;
     float innerSpeed = baseSpeed * innerRatio;
+    if (innerSpeed < 150.0f) innerSpeed = 150.0f; // STRICT FLOOR: MIN 150 PWM
 
     uint32_t tStart = millis();
     uint32_t lastLoop = millis();
@@ -427,12 +432,12 @@ bool Navigator::smoothCurveTurn45(bool turnLeft, float baseSpeed) {
         }
 
         if (turnLeft) {
-            int16_t leftPwm = (int16_t)constrain(innerSpeed - gyroTrim - opticalTrim, 35.0f, baseSpeed);
-            int16_t rightPwm = (int16_t)outerSpeed;
+            int16_t leftPwm = (int16_t)constrain(innerSpeed - gyroTrim - opticalTrim, 150.0f, baseSpeed);
+            int16_t rightPwm = (int16_t)constrain(outerSpeed, 150.0f, 255.0f);
             Motors::setSpeeds(leftPwm, rightPwm);
         } else {
-            int16_t leftPwm = (int16_t)outerSpeed;
-            int16_t rightPwm = (int16_t)constrain(innerSpeed + gyroTrim - opticalTrim, 35.0f, baseSpeed);
+            int16_t leftPwm = (int16_t)constrain(outerSpeed, 150.0f, 255.0f);
+            int16_t rightPwm = (int16_t)constrain(innerSpeed + gyroTrim - opticalTrim, 150.0f, baseSpeed);
             Motors::setSpeeds(leftPwm, rightPwm);
         }
 
@@ -451,6 +456,7 @@ bool Navigator::smoothCurveTurn45(bool turnLeft, float baseSpeed) {
 // Menggunakan S-Curve profile, Gyro heading lock PD, dan PD optical post balancing.
 // ==============================================================================
 bool Navigator::sprintDiagonal(float numDiagonalSteps, float cruiseSpeed) {
+    if (cruiseSpeed < 150.0f) cruiseSpeed = 150.0f; // STRICT FLOOR: Kecepatan diagonal minimal 150 PWM
     Motors::enable();
     Encoders::reset();
     IMU::update();
@@ -458,7 +464,7 @@ bool Navigator::sprintDiagonal(float numDiagonalSteps, float cruiseSpeed) {
 
     float targetDistance = numDiagonalSteps * CELL_DIAGONAL_MM;
     float currentDistance = 0.0f;
-    const float minSpeed = (cruiseSpeed < 100.0f) ? 55.0f : 80.0f;
+    const float minSpeed = 150.0f; // STRICT FLOOR: Kecepatan tidak boleh < 150 PWM
 
     // Parameter waktu untuk mode motor N20 tanpa encoder
     uint32_t tStart = millis();
@@ -556,8 +562,8 @@ bool Navigator::sprintDiagonal(float numDiagonalSteps, float cruiseSpeed) {
 
         steeringCorrection = constrain(steeringCorrection, -70.0f, 70.0f);
 
-        int16_t leftPwm = (int16_t)(speed + steeringCorrection);
-        int16_t rightPwm = (int16_t)(speed - steeringCorrection);
+        int16_t leftPwm = (int16_t)constrain(speed + steeringCorrection, 150.0f, 255.0f);
+        int16_t rightPwm = (int16_t)constrain(speed - steeringCorrection, 150.0f, 255.0f);
 
         Motors::setSpeeds(leftPwm, rightPwm);
 
@@ -580,22 +586,22 @@ bool Navigator::ensureFrontWallClearance() {
     Sensors::update();
     IRSensorData ir = Sensors::getFiltered();
 
-    if (!Sensors::hasWallFront()) return true;
+    if (!Sensors::hasWallFront() && ir.frontCenter < 800) return true;
 
-    // Jika moncong terlalu dekat ke dinding depan (melebihi target henti aman putar):
-    // Mundur CEPAT dan TEGAS dengan PWM -130 agar responsif seketika tanpa hunting
-    if (ir.frontCenter >= WALL_FRONT_STOP_ADC) {
+    // Jika moncong terlalu dekat ke dinding depan:
+    // Mundur CEPAT dan TEGAS dengan PWM -160 (kecepatan >= 150 PWM) selama ~40-60ms
+    // sampai jarak aman putar tercapai (frontCenter <= 850 ADC, ~40-45mm dari dinding)
+    if (ir.frontCenter > 1050) {
         Motors::enable();
         uint32_t tStart = millis();
-        uint16_t targetClearance = (WALL_FRONT_STOP_ADC > 180) ? (WALL_FRONT_STOP_ADC - 150) : 150;
-        while ((millis() - tStart) < 180) {
+        while ((millis() - tStart) < 70) {
             Sensors::update();
             ir = Sensors::getFiltered();
-            if (ir.frontCenter <= targetClearance) {
+            if (ir.frontCenter <= 850) {
                 break;
             }
-            Motors::setSpeeds(-130, -130);
-            delay(3);
+            Motors::setSpeeds(-160, -160);
+            delay(2);
         }
         Motors::brake();
         delay(30);
@@ -607,15 +613,16 @@ bool Navigator::ensureFrontWallClearance() {
 
 // ==============================================================================
 // DISCRETE PIVOT TURN 90 (CLOSED-LOOP PID CONTROLLER + ACTIVE GYRO Z DAMPING)
-// Menggunakan PID Controller lengkap:
+// Menggunakan PID Controller lengkap dengan jaminan batas kecepatan minimum 150 PWM:
 // - P-Term: Torsi rotasi proporsional terhadap sisa sudut
 // - I-Term: Mengatasi gesekan internal gearbox N20 (stiction) saat mendekati target
 // - D-Term: Membaca laju angular fisik Gyro Z (deg/s) untuk pengereman halus tanpa overshoot
 // ==============================================================================
 bool Navigator::turn90(bool turnLeft, float turnSpeed) {
+    if (turnSpeed < 165.0f) turnSpeed = 170.0f; // Minimal 170 PWM untuk belokan pivot bertenaga
     Motors::enable();
 
-    // 1. Pastikan moncong memiliki clearance bebas (otomatis mundur jika terlalu dekat dinding depan)
+    // 1. Pastikan moncong memiliki clearance bebas (otomatis mundur snapback jika terlalu dekat dinding depan)
     ensureFrontWallClearance();
 
     // Fallback: Jika IMU MPU6050 tidak terpasang atau tidak terdeteksi di I2C bus
@@ -636,20 +643,20 @@ bool Navigator::turn90(bool turnLeft, float turnSpeed) {
                 delay(2);
             }
         } else {
-            // Timing-based pivot turn (~320ms pada turnSpeed)
+            // Timing-based pivot turn (~300ms pada 170 PWM)
             if (turnLeft) {
                 Motors::setSpeeds(-(int16_t)turnSpeed, (int16_t)turnSpeed);
             } else {
                 Motors::setSpeeds((int16_t)turnSpeed, -(int16_t)turnSpeed);
             }
             uint32_t t0 = millis();
-            while ((millis() - t0) < 320) {
+            while ((millis() - t0) < 300) {
                 if (UI::checkEmergencyStop()) { emergencyStop(); return false; }
                 delay(2);
             }
         }
         Motors::brake();
-        delay(50);
+        delay(40);
         return true;
     }
 
@@ -667,7 +674,7 @@ bool Navigator::turn90(bool turnLeft, float turnSpeed) {
     float lastTurnYaw = startYaw;
     uint8_t recoveryAttempts = 0;
 
-    while ((millis() - startTime) < 1600) {
+    while ((millis() - startTime) < 1400) {
         if (UI::checkEmergencyStop()) {
             emergencyStop();
             return false;
@@ -696,13 +703,13 @@ bool Navigator::turn90(bool turnLeft, float turnSpeed) {
         if (fabs(currentYaw - lastTurnYaw) >= 1.2f) {
             lastTurnYaw = currentYaw;
             lastTurnProgressTime = millis();
-        } else if ((millis() - lastTurnProgressTime) > 280) {
-            // Jika dalam 280ms sudut belum berubah (terhambat/nyangkut di dinding):
+        } else if ((millis() - lastTurnProgressTime) > 220) {
+            // Jika dalam 220ms sudut belum berubah (terhambat atau tergesek dinding):
             if (recoveryAttempts < 2) {
                 recoveryAttempts++;
-                // Mundur darurat cepat dan bertenaga untuk melepas moncong dari dinding
-                Motors::setSpeeds(-130, -130);
-                delay(90);
+                // Mundur bertenaga cepat (-160 PWM) untuk melepaskan kontak dengan dinding
+                Motors::setSpeeds(-160, -160);
+                delay(60);
                 Motors::brake();
                 delay(20);
                 lastTurnProgressTime = millis();
@@ -710,26 +717,24 @@ bool Navigator::turn90(bool turnLeft, float turnSpeed) {
                 continue;
             }
 
-            if (fabs(diff) <= 4.5f) {
-                break;
-            }
+            // Jika sudah 2x recovery dan waktu habis:
+            // JANGAN POTONG DAYA / JANGAN MATIKAN MOTOR YANG MEMBUAT ROBOT MOGOK!
+            // Mundur sedikit, lalu brake, dan anggap belokan selesai agar scan maze terus berjalan.
+            Motors::setSpeeds(-160, -160);
+            delay(50);
             Motors::brake();
-            Motors::disable();
-            Buzzer::playAlert();
-            Serial.println(F("\n[FAILSAFE] BELOKAN TERTAHAN / NYANGKUT! Daya motor diputus."));
-            return false;
+            delay(20);
+            Serial.println(F("\n[TURN90] Belokan disesuaikan, scan dilanjutkan."));
+            break;
         }
 
-        // Pengawasan Proteksi Sensor Serong & Depan saat Berputar
-        bool dangerAhead = false;
-        if (turnLeft) {
-            if (irTurn.frontRight > 2400 || irTurn.frontCenter > 2600) {
-                dangerAhead = true;
-            }
-        } else {
-            if (irTurn.frontLeft > 2400 || irTurn.frontCenter > 2600) {
-                dangerAhead = true;
-            }
+        // Proteksi kontak depan saat memutar: jika sensor depan terlalu mepet dinding saat memutar
+        if (irTurn.frontCenter > 2200) {
+            Motors::setSpeeds(-160, -160);
+            delay(40);
+            Motors::brake();
+            delay(15);
+            lastTurnProgressTime = millis();
         }
 
         // Closed-Loop PID Turning:
@@ -751,9 +756,8 @@ bool Navigator::turn90(bool turnLeft, float turnSpeed) {
         float controlOutput = pTerm + iTerm + dTerm;
         float pSpeed = fabs(controlOutput);
         
-        // Deselerasi halus: Jika sisa sudut < 15°, turunkan batas minSpeed agar berhenti presisi di 90°
-        float minTurnPwm = (fabs(diff) < 15.0f) ? 58.0f : 85.0f;
-        if (dangerAhead) minTurnPwm = 55.0f; // Perlambat jika mendekati dinding luar
+        // STRICT SPEED FLOOR: KECEPATAN TIDAK BOLEH KURANG DARI 150 PWM!
+        const float minTurnPwm = 150.0f;
         pSpeed = constrain(pSpeed, minTurnPwm, turnSpeed);
 
         if (controlOutput > 0) {
@@ -768,23 +772,17 @@ bool Navigator::turn90(bool turnLeft, float turnSpeed) {
     }
 
     Motors::brake();
-    delay(40);
+    delay(30);
 
-    // 2. Koreksi & Pelurusan Otomatis Menggunakan Sensor Samping Pasca Belokan
+    // 2. Koreksi & Pelurusan Cepat Pasca Belokan Menggunakan Sensor Samping
     Sensors::update();
     if (Sensors::hasWallLeft() && Sensors::hasWallRight()) {
         float angleErr = Sensors::getAngleError();
-        // Jika sudut miring terhadap lorong baru, luruskan secara halus
-        if (fabs(angleErr) > 35.0f && fabs(angleErr) < 350.0f) {
-            uint32_t tAlign = millis();
-            while ((millis() - tAlign) < 50) {
-                Sensors::update();
-                angleErr = Sensors::getAngleError();
-                if (fabs(angleErr) < 20.0f) break;
-                int16_t corrSpeed = (angleErr > 0) ? -55 : 55;
-                Motors::setSpeeds(corrSpeed, -corrSpeed);
-                delay(4);
-            }
+        // Koreksi pulsa singkat jika ada deviasi orientasi terhadap lorong baru
+        if (fabs(angleErr) > 40.0f && fabs(angleErr) < 350.0f) {
+            int16_t corrSpeed = (angleErr > 0) ? -150 : 150;
+            Motors::setSpeeds(corrSpeed, -corrSpeed);
+            delay(20);
             Motors::brake();
             delay(15);
             IMU::update();
@@ -797,25 +795,17 @@ bool Navigator::turn90(bool turnLeft, float turnSpeed) {
 }
 
 bool Navigator::turn180(float turnSpeed) {
+    if (turnSpeed < 165.0f) turnSpeed = 170.0f; // Minimal 170 PWM untuk belokan 180 derajat
     ensureFrontWallClearance();
     if (!turn90(false, turnSpeed)) return false;
-    delay(15);
+    delay(20);
+    ensureFrontWallClearance();
     return turn90(false, turnSpeed);
 }
 
 void Navigator::alignFrontWall() {
     if (!Sensors::hasWallFront()) return;
-    Motors::enable();
-    uint32_t t0 = millis();
-    while ((millis() - t0) < 400) {
-        Sensors::update();
-        if (Sensors::getFiltered().frontCenter > 850) break;
-        Motors::setSpeeds(40, 40);
-        delay(10);
-    }
-    Motors::brake();
-    delay(30);
-    Motors::coast();
+    ensureFrontWallClearance();
 }
 
 // ==============================================================================
@@ -835,18 +825,18 @@ bool Navigator::autoAlignWithWalls(bool doBackTouch) {
 
     Serial.println(F("\n[Auto-Align] Memulai pelurusan otomatis sejajar dinding tanpa IMU..."));
 
-    // 1. Mechanical Squaring (Mundur pelan meratakan pantat ke dinding belakang sel start)
+    // 1. Mechanical Squaring (Mundur bertenaga meratakan pantat ke dinding belakang sel start)
     if (doBackTouch) {
-        Motors::setSpeeds(-75, -75);
-        delay(140);
-        Motors::brake();
-        delay(50);
-
-        // Maju sedikit 15mm agar pantat bebas berputar
-        Motors::setSpeeds(75, 75);
+        Motors::setSpeeds(-150, -150);
         delay(70);
         Motors::brake();
-        delay(80);
+        delay(40);
+
+        // Maju sedikit 15mm agar pantat bebas berputar
+        Motors::setSpeeds(150, 150);
+        delay(35);
+        Motors::brake();
+        delay(50);
     }
 
     // 2. Optical Trigonometric Closed-Loop PD Alignment
@@ -883,7 +873,7 @@ bool Navigator::autoAlignWithWalls(bool doBackTouch) {
         // Sign dError harus dipertahankan agar D-term memperlambat saat mendekati target
         float sign = (angleErr > 0) ? 1.0f : -1.0f;
         float controlSpeed = (fabs(angleErr) * kp_align) + (dError * sign * kd_align);
-        controlSpeed = constrain(fabs(controlSpeed), 60.0f, 95.0f); // Kecepatan putar cukup untuk torsi N20
+        controlSpeed = constrain(fabs(controlSpeed), 150.0f, 175.0f); // STRICT FLOOR: MIN 150 PWM
 
         if (angleErr > 0) {
             // Miring ke Kanan (CW) -> Koreksi belok Kiri (CCW): Roda kiri mundur, roda kanan maju
