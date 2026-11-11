@@ -145,9 +145,9 @@
 #define DEFAULT_WALL_FRONT_THRESHOLD   320   // Ambang dinding depan sel saat ini (abaikan pantulan sel seberang)
 #define DEFAULT_WALL_SIDE_THRESHOLD    320   // Threshold dinding samping (kiri/kanan) responsif
 
-// Ambang Presisi Jarak Dinding Depan Sebelum Berbelok
-#define WALL_FRONT_STOP_ADC            1350   // Target henti sensor depan (~22-25mm dari dinding, dekat & presisi)
-#define WALL_FRONT_TOO_CLOSE_ADC       1600   // Batas jika terlalu mepet (otomatis snapback clearance ke zona aman)
+// Ambang Presisi Jarak Dinding Depan Sebelum Berbelok (Ideal: Pas untuk radius putar tanpa mundur)
+#define WALL_FRONT_STOP_ADC            1150   // Target henti sensor depan (~30-33mm dari dinding, pas & tidak perlu mundur)
+#define WALL_FRONT_TOO_CLOSE_ADC       1450   // Batas jika terlalu mepet ekstrem (hanya mikro-koreksi)
 #define WALL_FRONT_TOO_FAR_ADC         600   // Batas jika berhenti terlalu jauh dari dinding depan
 
 // --- MOTION SPEEDS & TUNING CONSTANTS (STRICT FLOOR: TIDAK PERNAH < 150 PWM) ---

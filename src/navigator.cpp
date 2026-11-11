@@ -578,36 +578,39 @@ bool Navigator::sprintDiagonal(float numDiagonalSteps, float cruiseSpeed) {
 
 
 // ==============================================================================
-// ENSURE FRONT WALL CLEARANCE (MUNDUR CEPAT JIKA TERLALU MEKET DINDING DEPAN)
-// Menjamin moncong robot memiliki ruang putar bebas (turning clearance) sebelum
-// berbelok 90 atau 180 derajat, sehingga tidak menyenggol atau terhambat dinding depan.
+// ENSURE FRONT WALL CLEARANCE (CEK JARAK PUTAR AMAN DINDING DEPAN)
+// Jika jarak dinding depan sudah pas, robot LANGSUNG berputar 90 derajat tanpa
+// perlu mundur, sehingga roda belakang / ekor robot tidak menabrak dinding belakang.
+// Hanya jika robot berhenti terlalu mepet ekstrem (>1300 ADC), dilakukan mikro-koreksi
+// mundur sangat singkat (maks 25ms, mundur ~3-4mm saja).
 // ==============================================================================
 bool Navigator::ensureFrontWallClearance() {
     Sensors::update();
     IRSensorData ir = Sensors::getFiltered();
 
-    if (!Sensors::hasWallFront() && ir.frontCenter < 800) return true;
+    if (!Sensors::hasWallFront()) return true;
 
-    // Jika moncong terlalu dekat ke dinding depan:
-    // Mundur CEPAT dan TEGAS dengan PWM -160 (kecepatan >= 150 PWM) selama ~40-60ms
-    // sampai jarak aman putar tercapai (frontCenter <= 850 ADC, ~40-45mm dari dinding)
-    if (ir.frontCenter > 1050) {
-        Motors::enable();
-        uint32_t tStart = millis();
-        while ((millis() - tStart) < 70) {
-            Sensors::update();
-            ir = Sensors::getFiltered();
-            if (ir.frontCenter <= 850) {
-                break;
-            }
-            Motors::setSpeeds(-160, -160);
-            delay(2);
-        }
-        Motors::brake();
-        delay(30);
+    // Jika jarak sudah pas (frontCenter <= 1300 ADC), TIDAK PERLU MUNDUR!
+    // Langsung berputar 90 derajat di tempat agar roda belakang tidak menabrak dinding belakang.
+    if (ir.frontCenter <= 1300) {
         return true;
     }
 
+    // Hanya jika moncong terlanjur terlalu mepet ekstrem ke dinding depan (> 1300 ADC):
+    // Lakukan mikro-koreksi mundur SANGAT SINGKAT (maksimal 25ms, mundur ~3-4mm saja)
+    Motors::enable();
+    uint32_t tStart = millis();
+    while ((millis() - tStart) < 25) {
+        Sensors::update();
+        ir = Sensors::getFiltered();
+        if (ir.frontCenter <= 1150) {
+            break;
+        }
+        Motors::setSpeeds(-150, -150);
+        delay(2);
+    }
+    Motors::brake();
+    delay(20);
     return true;
 }
 
@@ -707,11 +710,11 @@ bool Navigator::turn90(bool turnLeft, float turnSpeed) {
             // Jika dalam 220ms sudut belum berubah (terhambat atau tergesek dinding):
             if (recoveryAttempts < 2) {
                 recoveryAttempts++;
-                // Mundur bertenaga cepat (-160 PWM) untuk melepaskan kontak dengan dinding
-                Motors::setSpeeds(-160, -160);
-                delay(60);
+                // Mikro-dorongan pelepasan sangat singkat (25ms @ -150 PWM) agar tidak membentur dinding belakang
+                Motors::setSpeeds(-150, -150);
+                delay(25);
                 Motors::brake();
-                delay(20);
+                delay(15);
                 lastTurnProgressTime = millis();
                 lastTurnYaw = IMU::getYaw();
                 continue;
@@ -719,22 +722,10 @@ bool Navigator::turn90(bool turnLeft, float turnSpeed) {
 
             // Jika sudah 2x recovery dan waktu habis:
             // JANGAN POTONG DAYA / JANGAN MATIKAN MOTOR YANG MEMBUAT ROBOT MOGOK!
-            // Mundur sedikit, lalu brake, dan anggap belokan selesai agar scan maze terus berjalan.
-            Motors::setSpeeds(-160, -160);
-            delay(50);
             Motors::brake();
             delay(20);
             Serial.println(F("\n[TURN90] Belokan disesuaikan, scan dilanjutkan."));
             break;
-        }
-
-        // Proteksi kontak depan saat memutar: jika sensor depan terlalu mepet dinding saat memutar
-        if (irTurn.frontCenter > 2200) {
-            Motors::setSpeeds(-160, -160);
-            delay(40);
-            Motors::brake();
-            delay(15);
-            lastTurnProgressTime = millis();
         }
 
         // Closed-Loop PID Turning:
@@ -760,13 +751,70 @@ bool Navigator::turn90(bool turnLeft, float turnSpeed) {
         const float minTurnPwm = 150.0f;
         pSpeed = constrain(pSpeed, minTurnPwm, turnSpeed);
 
+        // ----------------------------------------------------------------------
+        // DYNAMIC IR-GUIDED WALL AVOIDANCE SAAT BELOK 90°
+        // Menggunakan sensor serong (PB0/PA3) dan depan (PA4) secara aktif.
+        // Jika moncong mendekati dinding depan saat memutar, sistem menggeser pusat
+        // rotasi ke belakang (Rearward-Biased Pivot) agar moncong tertarik menjauh dari dinding
+        // tanpa perlu mundur berhenti, sehingga roda belakang tidak menabrak dinding belakang!
+        // ----------------------------------------------------------------------
+        float leftPwmTarget = 0.0f;
+        float rightPwmTarget = 0.0f;
+
         if (controlOutput > 0) {
-            // Need CCW (Turn Left): Left wheel reverse, Right wheel forward
-            Motors::setSpeeds(-(int16_t)pSpeed, (int16_t)pSpeed);
+            // Belok Kiri (CCW): Roda kiri mundur (-), roda kanan maju (+)
+            // Moncong kanan (frontRight & frontCenter) memantau dinding depan saat berayun
+            uint16_t frontProximity = (irTurn.frontRight > irTurn.frontCenter) ? irTurn.frontRight : irTurn.frontCenter;
+
+            if (frontProximity > 1500) {
+                // Sangat mepet dinding depan: mikro-tarik mundur 16ms
+                Motors::setSpeeds(-150, -150);
+                delay(16);
+                Motors::brake();
+                delay(8);
+                lastTurnProgressTime = millis();
+                leftPwmTarget  = -180.0f;
+                rightPwmTarget = 150.0f;
+            } else if (frontProximity > 1050) {
+                // Dinding depan mulai mendekat ke moncong: aktifkan Rearward-Biased Pivot
+                // Roda kanan (dorong maju) ditahan di minimum 150 PWM,
+                // Roda kiri (tarik mundur) diperkuat ke -185 PWM agar moncong tertarik menjauh dari dinding!
+                leftPwmTarget  = -185.0f;
+                rightPwmTarget = 150.0f;
+            } else {
+                // Jarak depan aman: Pivot simetris standar bertenaga
+                leftPwmTarget  = -pSpeed;
+                rightPwmTarget = pSpeed;
+            }
         } else {
-            // Need CW (Turn Right): Left wheel forward, Right wheel reverse
-            Motors::setSpeeds((int16_t)pSpeed, -(int16_t)pSpeed);
+            // Belok Kanan (CW): Roda kiri maju (+), roda kanan mundur (-)
+            // Moncong kiri (frontLeft & frontCenter) memantau dinding depan saat berayun
+            uint16_t frontProximity = (irTurn.frontLeft > irTurn.frontCenter) ? irTurn.frontLeft : irTurn.frontCenter;
+
+            if (frontProximity > 1500) {
+                // Sangat mepet dinding depan: mikro-tarik mundur 16ms
+                Motors::setSpeeds(-150, -150);
+                delay(16);
+                Motors::brake();
+                delay(8);
+                lastTurnProgressTime = millis();
+                leftPwmTarget  = 150.0f;
+                rightPwmTarget = -180.0f;
+            } else if (frontProximity > 1050) {
+                // Dinding depan mulai mendekat ke moncong: aktifkan Rearward-Biased Pivot
+                // Roda kiri (dorong maju) ditahan di minimum 150 PWM,
+                // Roda kanan (tarik mundur) diperkuat ke -185 PWM agar moncong tertarik menjauh dari dinding!
+                leftPwmTarget  = 150.0f;
+                rightPwmTarget = -185.0f;
+            } else {
+                // Jarak depan aman: Pivot simetris standar bertenaga
+                leftPwmTarget  = pSpeed;
+                rightPwmTarget = -pSpeed;
+            }
         }
+
+        // Terapkan kecepatan ke motor (selalu >= 150 PWM)
+        Motors::setSpeeds((int16_t)leftPwmTarget, (int16_t)rightPwmTarget);
 
         delay(4);
     }
