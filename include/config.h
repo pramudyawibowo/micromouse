@@ -98,7 +98,15 @@
 //    #define MAZE_GOAL_MIN_Y  1
 //    #define MAZE_GOAL_MAX_Y  2
 //
-// 2. Arena Kompetisi Resmi (16x16):
+// 2. Arena Uji Coba Sedang (6x6) - Pusat:
+//    #define MAZE_WIDTH       6
+//    #define MAZE_HEIGHT      6
+//    #define MAZE_GOAL_MIN_X  2
+//    #define MAZE_GOAL_MAX_X  3
+//    #define MAZE_GOAL_MIN_Y  2
+//    #define MAZE_GOAL_MAX_Y  3
+//
+// 3. Arena Kompetisi Resmi (16x16):
 //    #define MAZE_WIDTH       16
 //    #define MAZE_HEIGHT      16
 //    #define MAZE_GOAL_MIN_X  7
@@ -106,14 +114,14 @@
 //    #define MAZE_GOAL_MIN_Y  7
 //    #define MAZE_GOAL_MAX_Y  8
 
-#define MAZE_WIDTH              4     // Lebar kolom labirin (X: 0 sampai MAZE_WIDTH - 1)
-#define MAZE_HEIGHT             4     // Tinggi baris labirin (Y: 0 sampai MAZE_HEIGHT - 1)
+#define MAZE_WIDTH              6     // Lebar kolom labirin (X: 0 sampai MAZE_WIDTH - 1)
+#define MAZE_HEIGHT             6     // Tinggi baris labirin (Y: 0 sampai MAZE_HEIGHT - 1)
 
 // Koordinat Area Kotak Finish / Goal (Inklusif: MIN <= Posisi <= MAX)
-// Diatur di pojok terjauh (2..3, 2..3) agar robot tidak berhenti prematur di sel awal
-#define MAZE_GOAL_MIN_X         2     // Batas minimum kolom X finish (Grid 4x4: pojok 2..3)
+// Diatur tepat di tengah labirin 6x6 (sel X: 2..3, Y: 2..3)
+#define MAZE_GOAL_MIN_X         2     // Batas minimum kolom X finish (pusat 6x6: sel 2..3)
 #define MAZE_GOAL_MAX_X         3     // Batas maksimum kolom X finish
-#define MAZE_GOAL_MIN_Y         2     // Batas minimum baris Y finish
+#define MAZE_GOAL_MIN_Y         2     // Batas minimum baris Y finish (pusat 6x6: sel 2..3)
 #define MAZE_GOAL_MAX_Y         3     // Batas maksimum baris Y finish
 
 // ==============================================================================
