@@ -84,6 +84,38 @@
 #define CURVE_TURN_RADIUS_MM    90.00f // Radius belokan mengular (slalom curve) di pusat sel (90mm)
 
 // ==============================================================================
+// UKURAN GRID LABIRIN & TARGET GOAL (CUSTOMIZABLE UNTUK UJI COBA ARENA KECIL)
+// ==============================================================================
+// Anda dapat memperkecil ukuran maze untuk uji coba di arena kecil (misal: 4x4, 8x8).
+// Standar kompetisi resmi Micromouse adalah 16x16.
+//
+// CONTOH PRESET:
+// 1. Arena Uji Coba Mini (4x4):
+//    #define MAZE_WIDTH       4
+//    #define MAZE_HEIGHT      4
+//    #define MAZE_GOAL_MIN_X  1
+//    #define MAZE_GOAL_MAX_X  2
+//    #define MAZE_GOAL_MIN_Y  1
+//    #define MAZE_GOAL_MAX_Y  2
+//
+// 2. Arena Kompetisi Resmi (16x16):
+//    #define MAZE_WIDTH       16
+//    #define MAZE_HEIGHT      16
+//    #define MAZE_GOAL_MIN_X  7
+//    #define MAZE_GOAL_MAX_X  8
+//    #define MAZE_GOAL_MIN_Y  7
+//    #define MAZE_GOAL_MAX_Y  8
+
+#define MAZE_WIDTH              4     // Lebar kolom labirin (X: 0 sampai MAZE_WIDTH - 1)
+#define MAZE_HEIGHT             4     // Tinggi baris labirin (Y: 0 sampai MAZE_HEIGHT - 1)
+
+// Koordinat Area Kotak Finish / Goal (Inklusif: MIN <= Posisi <= MAX)
+#define MAZE_GOAL_MIN_X         1     // Batas minimum kolom X finish
+#define MAZE_GOAL_MAX_X         2     // Batas maksimum kolom X finish
+#define MAZE_GOAL_MIN_Y         1     // Batas minimum baris Y finish
+#define MAZE_GOAL_MAX_Y         2     // Batas maksimum baris Y finish
+
+// ==============================================================================
 // ENCODER & MOTOR HARDWARE CONFIGURATION (DUAL-MODE N20 SUPPORT)
 // ==============================================================================
 // 0 = AUTO_DETECT (Otomatis deteksi ada/tidaknya pulsa encoder saat motor berputar)
@@ -106,7 +138,7 @@
 #define FLASH_MAZE_SECTOR      FLASH_SECTOR_7
 #define FLASH_MAZE_ADDR        0x08060000UL
 #endif
-#define FLASH_MAZE_MAGIC       0xA55A2026UL
+#define FLASH_MAZE_MAGIC       (0xA55A0000UL | ((uint32_t)(MAZE_WIDTH) << 8) | (uint32_t)(MAZE_HEIGHT))
 
 // Wall Detection Thresholds (12-bit ADC: 0 - 4095)
 // Default threshold aman untuk deteksi dinding labirin standar
@@ -114,9 +146,9 @@
 #define DEFAULT_WALL_SIDE_THRESHOLD    320   // Threshold dinding samping (kiri/kanan) responsif
 
 // Ambang Presisi Jarak Dinding Depan Sebelum Berbelok
-#define WALL_FRONT_STOP_ADC            650   // Target henti sensor depan (~25-30mm dari dinding, pas di tengah sel)
-#define WALL_FRONT_TOO_CLOSE_ADC      1200   // Batas jika terlalu mepet (hanya mundur jika moncong <15mm dari dinding)
-#define WALL_FRONT_TOO_FAR_ADC         400   // Batas jika berhenti terlalu jauh dari dinding depan
+#define WALL_FRONT_STOP_ADC           1200   // Target henti sensor depan (~25-30mm dari dinding, pas di tengah sel)
+#define WALL_FRONT_TOO_CLOSE_ADC      1800   // Batas jika terlalu mepet (hanya mundur jika moncong <15mm dari dinding)
+#define WALL_FRONT_TOO_FAR_ADC         500   // Batas jika berhenti terlalu jauh dari dinding depan
 
 // --- MOTION SPEEDS & TUNING CONSTANTS (GESIT, LINCAH, & BERTENAGA) ---
 // Mode 3: Scan / Exploration Mode

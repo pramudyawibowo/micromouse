@@ -766,7 +766,7 @@ void startSelectedMode() {
     if (selectedMenuMode == MODE_SCAN_MAZE || selectedMenuMode == MODE_FAST_RUN) {
         Maze::resetPosition();
         if (selectedMenuMode == MODE_SCAN_MAZE) {
-            Maze::resetWalls(); // Reset peta dinding agar scan baru dimulai dari peta bersih 16x16
+            Maze::resetWalls(); // Reset peta dinding agar scan baru dimulai dari peta bersih
         }
 
         Serial.println(F("Robot ditaruh di sel Start (0,0). Lepaskan tangan Anda..."));

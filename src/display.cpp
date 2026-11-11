@@ -383,39 +383,50 @@ void Display::showCalibration(const char* stepName, bool isDone) {
 void Display::drawMiniMap(uint8_t robotX, uint8_t robotY, Direction heading, uint8_t startX, uint8_t startY) {
     if (!connected) return;
 
-    // Garis batas luar labirin 16x16 (area 64x64 piksel, tiap sel 4x4 piksel)
-    oled.drawRect(startX, startY, 64, 64, SSD1306_WHITE);
+    // Hitung ukuran sel piksel dinamis agar pas memenuhi area layar 64x64
+    const uint8_t maxDim = (MAZE_WIDTH > MAZE_HEIGHT) ? MAZE_WIDTH : MAZE_HEIGHT;
+    const uint8_t cellPx = (maxDim > 0) ? (64 / maxDim) : 4;
+    const uint8_t mazePixW = MAZE_WIDTH * cellPx;
+    const uint8_t mazePixH = MAZE_HEIGHT * cellPx;
 
-    // Kotak finish (7,7)-(8,8) di pusat labirin (8x8 piksel)
-    oled.drawRect(startX + 28, startY + 28, 8, 8, SSD1306_WHITE);
+    // Garis batas luar labirin
+    oled.drawRect(startX, startY, mazePixW, mazePixH, SSD1306_WHITE);
+
+    // Kotak finish / goal di mini-map
+    int16_t gx = startX + (MAZE_GOAL_MIN_X * cellPx);
+    int16_t gy = startY + (MAZE_HEIGHT - 1 - MAZE_GOAL_MAX_Y) * cellPx;
+    int16_t gw = (MAZE_GOAL_MAX_X - MAZE_GOAL_MIN_X + 1) * cellPx;
+    int16_t gh = (MAZE_GOAL_MAX_Y - MAZE_GOAL_MIN_Y + 1) * cellPx;
+    oled.drawRect(gx, gy, gw, gh, SSD1306_WHITE);
 
     // Gambar seluruh dinding yang terpetakan
     for (uint8_t x = 0; x < MAZE_WIDTH; x++) {
         for (uint8_t y = 0; y < MAZE_HEIGHT; y++) {
             uint8_t w = Maze::getWallByte(x, y);
             if (w == 0) continue;
-            int16_t px = startX + (x * 4);
-            int16_t py = startY + (15 - y) * 4;
+            int16_t px = startX + (x * cellPx);
+            int16_t py = startY + (MAZE_HEIGHT - 1 - y) * cellPx;
 
             if (w & (1 << DIR_NORTH)) {
-                oled.drawFastHLine(px, py, 4, SSD1306_WHITE);
+                oled.drawFastHLine(px, py, cellPx, SSD1306_WHITE);
             }
             if (w & (1 << DIR_EAST)) {
-                oled.drawFastVLine(px + 3, py, 4, SSD1306_WHITE);
+                oled.drawFastVLine(px + cellPx - 1, py, cellPx, SSD1306_WHITE);
             }
             if (w & (1 << DIR_SOUTH)) {
-                oled.drawFastHLine(px, py + 3, 4, SSD1306_WHITE);
+                oled.drawFastHLine(px, py + cellPx - 1, cellPx, SSD1306_WHITE);
             }
             if (w & (1 << DIR_WEST)) {
-                oled.drawFastVLine(px, py, 4, SSD1306_WHITE);
+                oled.drawFastVLine(px, py, cellPx, SSD1306_WHITE);
             }
         }
     }
 
-    // Gambar posisi robot (2x2 piksel)
-    int16_t rx = startX + (robotX * 4) + 1;
-    int16_t ry = startY + (15 - robotY) * 4 + 1;
-    oled.fillRect(rx, ry, 2, 2, SSD1306_WHITE);
+    // Gambar posisi robot (ukuran titik menyesuaikan skala)
+    uint8_t robotDot = (cellPx >= 8) ? (cellPx / 2) : 2;
+    int16_t rx = startX + (robotX * cellPx) + (cellPx - robotDot) / 2;
+    int16_t ry = startY + (MAZE_HEIGHT - 1 - robotY) * cellPx + (cellPx - robotDot) / 2;
+    oled.fillRect(rx, ry, robotDot, robotDot, SSD1306_WHITE);
 }
 
 void Display::showLapResult(uint32_t lapTimeMs, uint8_t speedTier, bool isGoal) {

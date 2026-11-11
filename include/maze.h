@@ -1,9 +1,14 @@
 #pragma once
 
 #include <Arduino.h>
+#include "config.h"
 
+#ifndef MAZE_WIDTH
 #define MAZE_WIDTH  16
+#endif
+#ifndef MAZE_HEIGHT
 #define MAZE_HEIGHT 16
+#endif
 
 enum Direction : uint8_t {
     DIR_NORTH = 0,
@@ -13,7 +18,7 @@ enum Direction : uint8_t {
 };
 
 enum MazeTarget : uint8_t {
-    TARGET_GOAL  = 0, // Menuju kotak finish di pusat labirin (7,7)-(8,8)
+    TARGET_GOAL  = 0, // Menuju kotak finish / goal sesuai koordinat di config.h
     TARGET_START = 1  // Menuju kembali ke kotak start (0,0)
 };
 
@@ -62,6 +67,7 @@ public:
 
     // Goal / Start check
     static bool isAtGoal();
+    static bool isGoalCell(uint8_t x, uint8_t y);
     static bool isAtStart();
     static bool isMapped();
 

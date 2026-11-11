@@ -96,7 +96,12 @@ uint8_t Maze::getY() { return posY; }
 Direction Maze::getHeading() { return currentHeading; }
 
 bool Maze::isAtGoal() {
-    return (posX == 7 || posX == 8) && (posY == 7 || posY == 8);
+    return isGoalCell(posX, posY);
+}
+
+bool Maze::isGoalCell(uint8_t x, uint8_t y) {
+    return (x >= MAZE_GOAL_MIN_X && x <= MAZE_GOAL_MAX_X) &&
+           (y >= MAZE_GOAL_MIN_Y && y <= MAZE_GOAL_MAX_Y);
 }
 
 bool Maze::isAtStart() {
@@ -140,11 +145,15 @@ void Maze::updateDistances() {
         dist[0][0] = 0;
         queue[tail++] = {0, 0};
     } else {
-        // Target adalah 4 sel Goal di pusat labirin (7,7)-(8,8)
-        dist[7][7] = 0; queue[tail++] = {7, 7};
-        dist[7][8] = 0; queue[tail++] = {7, 8};
-        dist[8][7] = 0; queue[tail++] = {8, 7};
-        dist[8][8] = 0; queue[tail++] = {8, 8};
+        // Target adalah sel Goal di labirin sesuai konfigurasi di config.h
+        for (uint8_t gx = MAZE_GOAL_MIN_X; gx <= MAZE_GOAL_MAX_X; gx++) {
+            for (uint8_t gy = MAZE_GOAL_MIN_Y; gy <= MAZE_GOAL_MAX_Y; gy++) {
+                if (gx < MAZE_WIDTH && gy < MAZE_HEIGHT) {
+                    dist[gx][gy] = 0;
+                    queue[tail++] = {gx, gy};
+                }
+            }
+        }
     }
 
     while (head < tail) {
@@ -336,9 +345,9 @@ uint8_t Maze::generateFastestPath(PathStep* pathOut, uint8_t maxSteps) {
     uint8_t consecutiveFwd = 0;
 
     uint16_t safetyCounter = 0;
-    while (!((simX == 7 || simX == 8) && (simY == 7 || simY == 8)) && rawStepCount < 61) {
-        // Safety: maze 16x16 tidak mungkin lebih dari 256 langkah ke goal
-        if (++safetyCounter > 256) break;
+    while (!isGoalCell(simX, simY) && rawStepCount < 61) {
+        // Safety: batas langkah maksimal agar tidak loop tak terhingga
+        if (++safetyCounter > (MAZE_WIDTH * MAZE_HEIGHT * 2)) break;
 
         // Cari tetangga terbaik berdasarkan peta jarak Floodfill + Bobot Penalti Belokan
         Direction bestDir = simHeading;
@@ -467,9 +476,10 @@ bool Maze::saveToFlash() {
     }
     addr += 4;
 
-    // Write 256 bytes of maze walls as 64 words
+    // Write maze walls as words
     uint32_t* pData = (uint32_t*)walls;
-    for (size_t i = 0; i < (sizeof(walls) / 4); i++) {
+    size_t wordsToWrite = (sizeof(walls) + 3) / 4;
+    for (size_t i = 0; i < wordsToWrite; i++) {
         if (HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, addr, pData[i]) != HAL_OK) {
             HAL_FLASH_Lock();
             return false;
@@ -494,7 +504,11 @@ bool Maze::loadFromFlash() {
 }
 
 void Maze::printMaze() {
-    Serial.println(F("\n--- MICROMOUSE 16x16 FLOODFILL MAP ---"));
+    Serial.print(F("\n--- MICROMOUSE "));
+    Serial.print(MAZE_WIDTH);
+    Serial.print(F("x"));
+    Serial.print(MAZE_HEIGHT);
+    Serial.println(F(" FLOODFILL MAP ---"));
     for (int8_t y = MAZE_HEIGHT - 1; y >= 0; y--) {
         // North walls
         for (uint8_t x = 0; x < MAZE_WIDTH; x++) {
