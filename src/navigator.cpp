@@ -149,15 +149,16 @@ bool Navigator::sprintDistance(float targetDistance, float cruiseSpeed, bool bra
         // Safety check & center-lock: jika ada dinding depan
         // HANYA aktif setelah robot menempuh minimal > 60mm agar gangguan cahaya/bayangan
         // di awal sel tidak menghentikan langkah robot secara prematur!
+        IRSensorData rawData = Sensors::getRaw();
+        uint16_t fc = (irData.frontCenter > rawData.frontCenter) ? irData.frontCenter : rawData.frontCenter;
+
         if (currentDistance > 60.0f) {
-            if (Sensors::hasWallFront() || irData.frontCenter >= WALL_FRONT_STOP_ADC) {
-                // Berhenti tepat di titik aman sebelum dinding depan (~65-70mm)
-                if (irData.frontCenter >= WALL_FRONT_STOP_ADC || (targetDistance - currentDistance) < 18.0f) {
-                    break;
-                }
+            // Berhenti tepat di titik aman sebelum dinding depan (~70-75mm, pas untuk radius putar moncong)
+            if (fc >= WALL_FRONT_STOP_ADC) {
+                break;
             }
             // Pengaman Darurat Tabrakan Depan
-            if (irData.frontCenter >= WALL_FRONT_TOO_CLOSE_ADC) {
+            if (fc >= WALL_FRONT_TOO_CLOSE_ADC) {
                 Motors::brake();
                 delay(30);
                 break;
@@ -178,8 +179,8 @@ bool Navigator::sprintDistance(float targetDistance, float cruiseSpeed, bool bra
             float sDist = (remaining < rampDownDist) ? (remaining / rampDownDist) : 1.0f;
             float sFront = 1.0f;
             // Deselerasi mulus jika mendekati dinding depan
-            if ((Sensors::hasWallFront() || irData.frontCenter > 480) && irData.frontCenter > (WALL_FRONT_STOP_ADC - 240)) {
-                sFront = (float)(WALL_FRONT_STOP_ADC - irData.frontCenter) / 240.0f;
+            if (fc > (WALL_FRONT_STOP_ADC - 200)) {
+                sFront = (float)(WALL_FRONT_STOP_ADC - fc) / 200.0f;
                 if (sFront < 0.0f) sFront = 0.0f;
             }
             float s = (sFront < sDist) ? sFront : sDist;
@@ -187,68 +188,52 @@ bool Navigator::sprintDistance(float targetDistance, float cruiseSpeed, bool bra
             speed = minSpeed + (cruiseSpeed - minSpeed) * s;
         }
 
-        // 4. Cascaded PD Steering Controller (Master: Gyro Heading Lock | Slave: Wall Centering Trim)
-        float gyroRate = IMU::getGyroZ(); // deg/sec (Laju angular fisik Gyro Z: CCW > 0, CW < 0)
-        float yawDiff = IMU::getYaw() - startYaw;
-        while (yawDiff > 180.0f) yawDiff -= 360.0f;
-        while (yawDiff < -180.0f) yawDiff += 360.0f;
-
-        // Master Controller: Gyro Heading Lock selalu aktif 100% menjaga robot lurus 0.00 derajat
-        float gyroSteer = (yawDiff * PID_GYRO_KP) + (gyroRate * PID_GYRO_KD);
-        gyroSteer = constrain(gyroSteer, -30.0f, 30.0f);
-
-        // Slave Controller: Wall Centering Trim Adaptif Kecepatan Tinggi (Sprint Attack Mode)
-        // Pada sprint kencang (>190 PWM), perbesar otoritas koreksi kemudi sensor agar robot tidak tersedot ke dinding
-        float maxTrim = (cruiseSpeed > 190.0f) ? 26.0f : 14.0f;
-        float kpWall  = (cruiseSpeed > 190.0f) ? (PID_WALL_KP * 1.5f) : PID_WALL_KP;
-        float kdWall  = (cruiseSpeed > 190.0f) ? (PID_WALL_KD * 1.5f) : PID_WALL_KD;
-
-        float wallTrim = 0.0f;
+        // 4. Cascaded PD Steering Controller (Master: Gyro Heading Lock | Slave: Wall Centering Target Yaw Offset)
+        // Outer Loop: Hitung target yaw offset dari posisi tengah lorong
+        // Inner Loop: Gyro Heading Lock mengarahkan robot menuju centerline secara aktif dan harmonis tanpa saling melawan
+        float targetYawOffset = 0.0f;
         bool wallL = Sensors::hasWallLeft();
         bool wallR = Sensors::hasWallRight();
 
         if (wallL && wallR) {
+            // Kedua dinding ada: jaga posisi tepat di tengah-tengah lorong
             float centeringError = (float)((int32_t)irData.left - (int32_t)irData.right);
             if (fabs(centeringError) > PID_WALL_DEADBAND) {
-                float dError = (centeringError - lastCenteringError) / dtLoop;
-                lastCenteringError = centeringError;
-                wallTrim = (centeringError * kpWall) + (dError * kdWall);
-                wallTrim = constrain(wallTrim, -maxTrim, maxTrim);
-            } else {
-                lastCenteringError = 0.0f;
+                targetYawOffset = constrain(centeringError * 0.018f, -6.0f, 6.0f);
             }
         } else if (wallL) {
+            // Hanya dinding kiri: pertahankan jarak nominal ke dinding kiri
             float errL = (float)((int32_t)irData.left - (int32_t)Sensors::getLeftNominal());
             if (fabs(errL) > PID_WALL_DEADBAND) {
-                wallTrim = (errL * (kpWall * 0.7f));
-                wallTrim = constrain(wallTrim, -maxTrim * 0.7f, maxTrim * 0.7f);
+                targetYawOffset = constrain(errL * 0.015f, -5.0f, 5.0f);
             }
-            lastCenteringError = 0.0f;
         } else if (wallR) {
+            // Hanya dinding kanan: pertahankan jarak nominal ke dinding kanan
             float errR = (float)((int32_t)Sensors::getRightNominal() - (int32_t)irData.right);
             if (fabs(errR) > PID_WALL_DEADBAND) {
-                wallTrim = (errR * (kpWall * 0.7f));
-                wallTrim = constrain(wallTrim, -maxTrim * 0.7f, maxTrim * 0.7f);
+                targetYawOffset = constrain(errR * 0.015f, -5.0f, 5.0f);
             }
-            lastCenteringError = 0.0f;
-        } else {
-            lastCenteringError = 0.0f;
         }
 
-        // Active Optical Proximity Shield (Anti-Nempel & Anti-Serempet Dinding pada High-Speed Sprint Attack)
-        if (irData.left > 1300) {
-            // Terlalu mepet ke dinding kiri: dorong paksa menjauh ke kanan seketika!
-            wallTrim += constrain((float)(irData.left - 1300) * 0.025f, 6.0f, 24.0f);
-        } else if (irData.right > 1300) {
-            // Terlalu mepet ke dinding kanan: dorong paksa menjauh ke kiri seketika!
-            wallTrim -= constrain((float)(irData.right - 1300) * 0.025f, 6.0f, 24.0f);
+        // Active Optical Proximity Shield (Anti-Nempel & Anti-Serempet Dinding)
+        if (irData.left > 1200) {
+            targetYawOffset += 3.5f; // Terlalu mepet dinding kiri -> arahkan yaw ke kanan
+        } else if (irData.right > 1200) {
+            targetYawOffset -= 3.5f; // Terlalu mepet dinding kanan -> arahkan yaw ke kiri
         }
 
-        float maxTotalSteer = (cruiseSpeed > 190.0f) ? 55.0f : 35.0f;
-        float totalSteer = constrain(gyroSteer + wallTrim, -maxTotalSteer, maxTotalSteer);
+        // Hitung selisih sudut heading terhadap target efektif (startYaw - targetYawOffset)
+        float effectiveTargetYaw = startYaw - targetYawOffset;
+        float yawDiff = IMU::getYaw() - effectiveTargetYaw;
+        while (yawDiff > 180.0f) yawDiff -= 360.0f;
+        while (yawDiff < -180.0f) yawDiff += 360.0f;
 
-        int16_t leftPwm  = (int16_t)constrain(speed + totalSteer, 150.0f, 255.0f);
-        int16_t rightPwm = (int16_t)constrain(speed - totalSteer, 150.0f, 255.0f);
+        float gyroRate = IMU::getGyroZ(); // deg/sec (Laju angular fisik Gyro Z: CCW > 0, CW < 0)
+        float gyroSteer = (yawDiff * PID_GYRO_KP) + (gyroRate * PID_GYRO_KD);
+        gyroSteer = constrain(gyroSteer, -35.0f, 35.0f);
+
+        int16_t leftPwm  = (int16_t)constrain(speed + gyroSteer, 150.0f, 255.0f);
+        int16_t rightPwm = (int16_t)constrain(speed - gyroSteer, 150.0f, 255.0f);
 
         Motors::setSpeeds(leftPwm, rightPwm);
 

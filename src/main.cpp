@@ -243,7 +243,7 @@ void runWallFollower() {
         }
         delay(50);
     } else {
-        bool stopAtEnd = (Sensors::getFiltered().frontCenter > 550);
+        bool stopAtEnd = (Sensors::getFiltered().frontCenter > (DEFAULT_WALL_FRONT_THRESHOLD - 50));
         Navigator::moveForwardCell(SCAN_SPEED_FORWARD, stopAtEnd);
         if (stopAtEnd) delay(40);
     }
@@ -432,7 +432,7 @@ void runScanMazeStep() {
                     bool isTarget = (Maze::getTarget() == TARGET_START) ? (nx == 0 && ny == 0) : Maze::isGoalCell(nx, ny);
                     if (!isTarget && 
                         !Maze::hasWallAt(nx, ny, Maze::getHeading()) && 
-                        Sensors::getFiltered().frontCenter < 550) {
+                        Sensors::getFiltered().frontCenter < (DEFAULT_WALL_FRONT_THRESHOLD - 50)) {
                         stopAtEnd = false; // Mulus meluncur tanpa henti di batas grid
                     }
                 }
@@ -458,7 +458,7 @@ void runScanMazeStep() {
             int8_t ny = Maze::getY() + DIR_DY[newH];
             if (nx >= 0 && nx < MAZE_WIDTH && ny >= 0 && ny < MAZE_HEIGHT) {
                 bool isTarget = (Maze::getTarget() == TARGET_START) ? (nx == 0 && ny == 0) : Maze::isGoalCell(nx, ny);
-                if (!isTarget && !Maze::hasWallAt(nx, ny, newH) && Sensors::getFiltered().frontCenter < 550) {
+                if (!isTarget && !Maze::hasWallAt(nx, ny, newH) && Sensors::getFiltered().frontCenter < (DEFAULT_WALL_FRONT_THRESHOLD - 50)) {
                     stopAtEnd = false;
                 }
             }
@@ -483,7 +483,7 @@ void runScanMazeStep() {
             int8_t ny = Maze::getY() + DIR_DY[newH];
             if (nx >= 0 && nx < MAZE_WIDTH && ny >= 0 && ny < MAZE_HEIGHT) {
                 bool isTarget = (Maze::getTarget() == TARGET_START) ? (nx == 0 && ny == 0) : Maze::isGoalCell(nx, ny);
-                if (!isTarget && !Maze::hasWallAt(nx, ny, newH) && Sensors::getFiltered().frontCenter < 550) {
+                if (!isTarget && !Maze::hasWallAt(nx, ny, newH) && Sensors::getFiltered().frontCenter < (DEFAULT_WALL_FRONT_THRESHOLD - 50)) {
                     stopAtEnd = false;
                 }
             }
@@ -508,7 +508,7 @@ void runScanMazeStep() {
             int8_t ny = Maze::getY() + DIR_DY[newH];
             if (nx >= 0 && nx < MAZE_WIDTH && ny >= 0 && ny < MAZE_HEIGHT) {
                 bool isTarget = (Maze::getTarget() == TARGET_START) ? (nx == 0 && ny == 0) : Maze::isGoalCell(nx, ny);
-                if (!isTarget && !Maze::hasWallAt(nx, ny, newH) && Sensors::getFiltered().frontCenter < 550) {
+                if (!isTarget && !Maze::hasWallAt(nx, ny, newH) && Sensors::getFiltered().frontCenter < (DEFAULT_WALL_FRONT_THRESHOLD - 50)) {
                     stopAtEnd = false;
                 }
             }
@@ -789,7 +789,7 @@ void returnToStartCalmly() {
                     if (nx >= 0 && nx < MAZE_WIDTH && ny >= 0 && ny < MAZE_HEIGHT) {
                         if (!(nx == 0 && ny == 0) && 
                             !Maze::hasWallAt(nx, ny, Maze::getHeading()) && 
-                            Sensors::getFiltered().frontCenter < 550) {
+                            Sensors::getFiltered().frontCenter < (DEFAULT_WALL_FRONT_THRESHOLD - 50)) {
                             stopAtEnd = false;
                         }
                     }

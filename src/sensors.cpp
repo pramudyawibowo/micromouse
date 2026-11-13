@@ -5,8 +5,8 @@ IRSensorData Sensors::rawData = {0, 0, 0, 0, 0};
 IRSensorData Sensors::filteredData = {0, 0, 0, 0, 0};
 uint16_t Sensors::frontThreshold = DEFAULT_WALL_FRONT_THRESHOLD;
 uint16_t Sensors::sideThreshold = DEFAULT_WALL_SIDE_THRESHOLD;
-uint16_t Sensors::leftNominal = 1200;
-uint16_t Sensors::rightNominal = 1200;
+uint16_t Sensors::leftNominal = 850;
+uint16_t Sensors::rightNominal = 850;
 
 void Sensors::init() {
     pinMode(PIN_IR_LEFT, INPUT_ANALOG);

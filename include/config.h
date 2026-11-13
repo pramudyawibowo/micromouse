@@ -152,13 +152,13 @@
 // Wall Detection Thresholds (12-bit ADC: 0 - 4095)
 // Ambang batas kebal cahaya ruangan (Ambient Light Rejection):
 // Cahaya lampu ruangan normal (150-450 ADC) diabaikan 100%, hanya mendeteksi pantulan dinding fisik nyata (>600-800 ADC)
-#define DEFAULT_WALL_FRONT_THRESHOLD   650   // Ambang dinding depan sel saat ini (kebal gangguan cahaya/bayangan)
+#define DEFAULT_WALL_FRONT_THRESHOLD   500   // Ambang dinding depan sel saat ini (kebal gangguan cahaya/bayangan)
 #define DEFAULT_WALL_SIDE_THRESHOLD    600   // Threshold dinding samping (responsif di lorong, aman dari noise cahaya <300 ADC)
 
 // Ambang Presisi Jarak Dinding Depan Sebelum Berbelok (Ideal: Pas untuk radius putar tanpa mundur)
-#define WALL_FRONT_STOP_ADC            720    // Target henti sensor depan (~65-70mm dari dinding, pas untuk radius putar moncong)
-#define WALL_FRONT_TOO_CLOSE_ADC       950    // Batas jika terlalu mepet (pengaman darurat rem)
-#define WALL_FRONT_TOO_FAR_ADC         450    // Batas jika berhenti terlalu jauh dari dinding depan
+#define WALL_FRONT_STOP_ADC            560    // Target henti sensor depan (~70-75mm dari dinding, pas untuk radius putar moncong)
+#define WALL_FRONT_TOO_CLOSE_ADC       780    // Batas jika terlalu mepet (pengaman darurat rem)
+#define WALL_FRONT_TOO_FAR_ADC         350    // Batas jika berhenti terlalu jauh dari dinding depan
 
 // --- MOTION SPEEDS & TUNING CONSTANTS (STRICT FLOOR: TIDAK PERNAH < 150 PWM) ---
 // Mode 3: Scan / Exploration Mode
@@ -182,7 +182,7 @@
 #define PID_WALL_KP                 0.020f  // Penguatan proporsional error tengah dinding (ADC) - sangat halus
 #define PID_WALL_KD                 0.008f  // Penguatan diferensial laju perubahan error dinding (de/dt)
 #define PID_WALL_DAMP_GYRO          0.150f  // Peredam aktif laju angular fisik Gyro Z (deg/s)
-#define PID_WALL_DEADBAND           40.0f   // Deadband ADC (abaikan getaran sensor minor agar laju lurus mulus)
+#define PID_WALL_DEADBAND           20.0f   // Deadband ADC (abaikan getaran sensor minor agar laju lurus mulus)
 
 // 2. Heading Lock PD Gains (Lorong terbuka tanpa dinding & jalur lurus multi-sel)
 #define PID_GYRO_KP                 2.000f  // Penguatan proporsional error Yaw angle (deg)
