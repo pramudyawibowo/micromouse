@@ -152,13 +152,13 @@
 // Wall Detection Thresholds (12-bit ADC: 0 - 4095)
 // Ambang batas kebal cahaya ruangan (Ambient Light Rejection):
 // Cahaya lampu ruangan normal (150-450 ADC) diabaikan 100%, hanya mendeteksi pantulan dinding fisik nyata (>600-800 ADC)
-#define DEFAULT_WALL_FRONT_THRESHOLD   800   // Ambang dinding depan sel saat ini (kebal gangguan cahaya/bayangan)
+#define DEFAULT_WALL_FRONT_THRESHOLD   650   // Ambang dinding depan sel saat ini (kebal gangguan cahaya/bayangan)
 #define DEFAULT_WALL_SIDE_THRESHOLD    600   // Threshold dinding samping (responsif di lorong, aman dari noise cahaya <300 ADC)
 
 // Ambang Presisi Jarak Dinding Depan Sebelum Berbelok (Ideal: Pas untuk radius putar tanpa mundur)
-#define WALL_FRONT_STOP_ADC            1100    // Target henti sensor depan (~50-55mm dari dinding, poros roda pas di pusat sel)
-#define WALL_FRONT_TOO_CLOSE_ADC       1300   // Batas jika terlalu mepet (pengaman darurat rem)
-#define WALL_FRONT_TOO_FAR_ADC         500    // Batas jika berhenti terlalu jauh dari dinding depan
+#define WALL_FRONT_STOP_ADC            720    // Target henti sensor depan (~65-70mm dari dinding, pas untuk radius putar moncong)
+#define WALL_FRONT_TOO_CLOSE_ADC       950    // Batas jika terlalu mepet (pengaman darurat rem)
+#define WALL_FRONT_TOO_FAR_ADC         450    // Batas jika berhenti terlalu jauh dari dinding depan
 
 // --- MOTION SPEEDS & TUNING CONSTANTS (STRICT FLOOR: TIDAK PERNAH < 150 PWM) ---
 // Mode 3: Scan / Exploration Mode

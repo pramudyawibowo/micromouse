@@ -147,12 +147,12 @@ bool Navigator::sprintDistance(float targetDistance, float cruiseSpeed, bool bra
         }
 
         // Safety check & center-lock: jika ada dinding depan
-        // HANYA aktif setelah robot menempuh minimal separuh sel (> 80mm) agar gangguan cahaya/bayangan
-        // di awal/tengah sel tidak menghentikan langkah robot secara prematur!
-        if (currentDistance > 80.0f) {
+        // HANYA aktif setelah robot menempuh minimal > 60mm agar gangguan cahaya/bayangan
+        // di awal sel tidak menghentikan langkah robot secara prematur!
+        if (currentDistance > 60.0f) {
             if (Sensors::hasWallFront() || irData.frontCenter >= WALL_FRONT_STOP_ADC) {
-                // Berhenti tepat di titik aman sebelum dinding depan (~42-45mm)
-                if (irData.frontCenter >= WALL_FRONT_STOP_ADC || (targetDistance - currentDistance) < 22.0f) {
+                // Berhenti tepat di titik aman sebelum dinding depan (~65-70mm)
+                if (irData.frontCenter >= WALL_FRONT_STOP_ADC || (targetDistance - currentDistance) < 18.0f) {
                     break;
                 }
             }
@@ -174,13 +174,15 @@ bool Navigator::sprintDistance(float targetDistance, float cruiseSpeed, bool bra
         if (!isCruising && currentDistance < rampUpDist) {
             float s = currentDistance / rampUpDist;
             speed = minSpeed + (cruiseSpeed - minSpeed) * s;
-        } else if (brakeAtEnd && remaining < rampDownDist) {
-            float s = remaining / rampDownDist;
-            // Jika ada dinding depan, bantu perlambatan halus berdasarkan jarak sensor depan menuju WALL_FRONT_STOP_ADC
-            if (Sensors::hasWallFront() && irData.frontCenter > (WALL_FRONT_STOP_ADC - 250)) {
-                float sFront = (float)(WALL_FRONT_STOP_ADC - irData.frontCenter) / 250.0f;
-                if (sFront < s) s = sFront;
+        } else if (brakeAtEnd) {
+            float sDist = (remaining < rampDownDist) ? (remaining / rampDownDist) : 1.0f;
+            float sFront = 1.0f;
+            // Deselerasi mulus jika mendekati dinding depan
+            if ((Sensors::hasWallFront() || irData.frontCenter > 480) && irData.frontCenter > (WALL_FRONT_STOP_ADC - 240)) {
+                sFront = (float)(WALL_FRONT_STOP_ADC - irData.frontCenter) / 240.0f;
+                if (sFront < 0.0f) sFront = 0.0f;
             }
+            float s = (sFront < sDist) ? sFront : sDist;
             s = constrain(s, 0.0f, 1.0f);
             speed = minSpeed + (cruiseSpeed - minSpeed) * s;
         }
@@ -651,9 +653,11 @@ bool Navigator::turn90(bool turnLeft, float turnSpeed) {
     }
 
     IMU::update();
-    float startYaw = IMU::getYaw();
+    float curYaw = IMU::getYaw();
+    float snappedCardinal = roundf(curYaw / 90.0f) * 90.0f;
+    float baseHeading = (fabs(curYaw - snappedCardinal) < 35.0f) ? snappedCardinal : curYaw;
     float targetYawChange = turnLeft ? 90.0f : -90.0f; // Left: +90 deg, Right: -90 deg
-    float targetYaw = startYaw + targetYawChange;
+    float targetYaw = baseHeading + targetYawChange;
     while (targetYaw > 180.0f) targetYaw -= 360.0f;
     while (targetYaw < -180.0f) targetYaw += 360.0f;
 
@@ -661,7 +665,7 @@ bool Navigator::turn90(bool turnLeft, float turnSpeed) {
     uint32_t lastLoopUs = micros();
     float integralTurn = 0.0f;
     uint32_t lastTurnProgressTime = millis();
-    float lastTurnYaw = startYaw;
+    float lastTurnYaw = curYaw;
     uint8_t recoveryAttempts = 0;
 
     while ((millis() - startTime) < 1400) {
@@ -768,25 +772,7 @@ bool Navigator::turn90(bool turnLeft, float turnSpeed) {
     }
 
     Motors::brake();
-    delay(30);
-
-    // 2. Koreksi & Pelurusan Cepat Pasca Belokan Menggunakan Sensor Samping
-    Sensors::update();
-    if (Sensors::hasWallLeft() && Sensors::hasWallRight()) {
-        float angleErr = Sensors::getAngleError();
-        // Koreksi pulsa singkat jika ada deviasi orientasi terhadap lorong baru
-        if (fabs(angleErr) > 40.0f && fabs(angleErr) < 350.0f) {
-            int16_t corrSpeed = (angleErr > 0) ? -150 : 150;
-            Motors::setSpeeds(corrSpeed, -corrSpeed);
-            delay(20);
-            Motors::brake();
-            delay(15);
-            IMU::update();
-        }
-    }
-
-    Motors::brake();
-    delay(20);
+    delay(40);
     return true;
 }
 

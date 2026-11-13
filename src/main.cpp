@@ -258,13 +258,13 @@ void runScanMazeStep() {
     Sensors::update();
     IMU::update();
 
-    // 1. FASE 1: Jika robot sedang menuju GOAL dan berhasil sampai di Finish (7,7)-(8,8)
+    // 1. FASE 1: Jika robot sedang menuju GOAL dan berhasil sampai di Finish
     if (Maze::getTarget() == TARGET_GOAL && Maze::isAtGoal()) {
         Navigator::emergencyStop();
-        UI::blinkAll(4, 70);
-        Buzzer::beep(2000, 100);
-        delay(120);
-        Buzzer::beep(2400, 200);
+        UI::blinkAll(3, 50);
+        Buzzer::beep(2000, 80);
+        delay(80);
+        Buzzer::beep(2500, 150);
 
         uint32_t lapDuration = millis() - lapStartTime;
         Serial.println(F("\n=============================================="));
@@ -272,8 +272,7 @@ void runScanMazeStep() {
         Serial.print(F("WAKTU SCAN MENUJU GOAL: "));
         Serial.print((float)lapDuration / 1000.0f, 3);
         Serial.println(F(" detik"));
-        Serial.println(F("Memulai perjalanan kembali ke START (0,0)..."));
-        Serial.println(F("Kecepatan: Sedang (~130 mm/s) agar presisi & aman"));
+        Serial.println(F("Langsung memulai perjalanan kembali ke START (0,0)..."));
         Serial.println(F("=============================================="));
 
         Maze::saveToFlash();
@@ -281,13 +280,13 @@ void runScanMazeStep() {
 
         if (Display::isConnected()) {
             Display::showLapResult(lapDuration, fastRunSpeedTier, true);
-            delay(1500);
+            delay(800);
         }
 
         // Beralih target Floodfill ke Start (0,0)
         Maze::setTarget(TARGET_START);
         lapStartTime = millis();
-        delay(800);
+        delay(200);
         return;
     }
 
@@ -355,11 +354,10 @@ void runScanMazeStep() {
     // ==============================================================================
 
     // 1. KUNCI LORONG LURUS (CORRIDOR LOCK):
-    // Jika dinding samping (kiri & kanan) ada, dan lorong depan masih terbuka:
-    // Robot berada di dalam lorong lurus dan BELUM SAMPAI di ujung lorong!
-    // Wajib terus maju sampai ke ujung lorong atau sampai ada persimpangan nyata!
-    if (left && right && !front) {
-        if (next != ACTION_FORWARD) {
+    // Hanya aktif saat menjelajah menuju GOAL dan jika aksi bukan putar balik.
+    // Saat kembali ke START atau saat Floodfill memilih putar balik, jangan kunci maju!
+    if (Maze::getTarget() == TARGET_GOAL && left && right && !front) {
+        if (next != ACTION_FORWARD && next != ACTION_TURN_AROUND) {
             Serial.println(F("[CORRIDOR GUARD] Di dalam lorong lurus (kiri/kanan dinding, depan buka) -> Lanjut MAJU!"));
             next = ACTION_FORWARD;
         }
@@ -615,7 +613,7 @@ void runFastRun() {
         }
 
         switch (path[i].cmd) {
-            case CMD_SPRINT:
+            case CMD_SPRINT: {
                 Serial.print(F("Step "));
                 Serial.print(i + 1);
                 Serial.print(F(": SPRINT "));
@@ -626,9 +624,13 @@ void runFastRun() {
                     running = false;
                     return;
                 }
+                int16_t nx = Maze::getX() + (path[i].cellCount * DIR_DX[Maze::getHeading()]);
+                int16_t ny = Maze::getY() + (path[i].cellCount * DIR_DY[Maze::getHeading()]);
+                Maze::setPosition((uint8_t)nx, (uint8_t)ny, Maze::getHeading());
                 break;
+            }
 
-            case CMD_CURVE_LEFT:
+            case CMD_CURVE_LEFT: {
                 Serial.print(F("Step "));
                 Serial.print(i + 1);
                 Serial.println(F(": BELOK PIVOT KIRI 90 DERAJAT"));
@@ -636,9 +638,12 @@ void runFastRun() {
                     running = false;
                     return;
                 }
+                Direction newH = (Direction)((Maze::getHeading() + 3) % 4);
+                Maze::setPosition(Maze::getX(), Maze::getY(), newH);
                 break;
+            }
 
-            case CMD_CURVE_RIGHT:
+            case CMD_CURVE_RIGHT: {
                 Serial.print(F("Step "));
                 Serial.print(i + 1);
                 Serial.println(F(": BELOK PIVOT KANAN 90 DERAJAT"));
@@ -646,7 +651,10 @@ void runFastRun() {
                     running = false;
                     return;
                 }
+                Direction newH = (Direction)((Maze::getHeading() + 1) % 4);
+                Maze::setPosition(Maze::getX(), Maze::getY(), newH);
                 break;
+            }
 
             case CMD_DIAG_ENTER_LEFT:
                 Serial.print(F("Step "));
@@ -700,15 +708,18 @@ void runFastRun() {
                 }
                 break;
 
-            case CMD_PIVOT_180:
+            case CMD_PIVOT_180: {
                 Serial.print(F("Step "));
                 Serial.print(i + 1);
                 Serial.println(F(": PIVOT 180"));
-                if (!Navigator::turn180(SCAN_SPEED_TURN)) {
+                if (!Navigator::turn180(curveSpd)) {
                     running = false;
                     return;
                 }
+                Direction newH = (Direction)((Maze::getHeading() + 2) % 4);
+                Maze::setPosition(Maze::getX(), Maze::getY(), newH);
                 break;
+            }
 
             case CMD_FINISH: {
                 uint32_t lapDuration = millis() - lapStartTime;
@@ -719,16 +730,15 @@ void runFastRun() {
 
                 Navigator::emergencyStop();
                 Buzzer::playVictory();
-                UI::blinkAll(6, 60);
+                UI::blinkAll(4, 50);
 
                 if (Display::isConnected()) {
                     Display::showLapResult(lapDuration, fastRunSpeedTier, true);
-                    delay(2500);
+                    delay(800);
                 }
 
-                // Jeda 2 detik di garis finish, lalu otomatis kembali ke Start (0,0) dengan kecepatan sedang/aman
-                Serial.println(F("Jeda 2 detik... Robot akan kembali ke Start (0,0) dengan kecepatan sedang (80 PWM)."));
-                delay(2000);
+                Serial.println(F("Langsung kembali ke Start (0,0)..."));
+                delay(300);
 
                 returnToStartCalmly();
                 running = false;

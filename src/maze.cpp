@@ -135,7 +135,7 @@ void Maze::updateWalls(bool frontWall, bool leftWall, bool rightWall) {
 
 void Maze::updateDistances() {
     struct Point { uint8_t x, y; };
-    Point queue[MAZE_WIDTH * MAZE_HEIGHT];
+    Point queue[256];
     uint16_t head = 0, tail = 0;
 
     for (uint8_t x = 0; x < MAZE_WIDTH; x++) {
@@ -169,10 +169,12 @@ void Maze::updateDistances() {
                 int8_t nx = cur.x + DX[d];
                 int8_t ny = cur.y + DY[d];
                 if (nx >= 0 && nx < MAZE_WIDTH && ny >= 0 && ny < MAZE_HEIGHT) {
-                    uint16_t stepCost = (currentTarget == TARGET_START && !visited[nx][ny]) ? 100 : 1;
+                    uint16_t stepCost = 1;
                     if (dist[nx][ny] > curDist + stepCost) {
                         dist[nx][ny] = curDist + stepCost;
-                        queue[tail++] = {(uint8_t)nx, (uint8_t)ny};
+                        if (tail < 256) {
+                            queue[tail++] = {(uint8_t)nx, (uint8_t)ny};
+                        }
                     }
                 }
             }
