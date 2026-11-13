@@ -365,6 +365,9 @@ static uint8_t smoothDiagonalPath(const PathStep* inPath, uint8_t inCount, PathS
 }
 
 uint8_t Maze::generateFastestPath(PathStep* pathOut, uint8_t maxSteps) {
+    currentTarget = TARGET_GOAL;
+    updateDistances();
+
     PathStep rawPath[64];
     uint8_t simX = 0;
     uint8_t simY = 0;
@@ -438,21 +441,11 @@ uint8_t Maze::generateFastestPath(PathStep* pathOut, uint8_t maxSteps) {
                 rawPath[rawStepCount].cellCount = 1;
                 rawStepCount++;
                 simHeading = (Direction)((simHeading + 1) % 4);
-                int8_t nxR = simX + DX[simHeading];
-                int8_t nyR = simY + DY[simHeading];
-                if (nxR < 0 || nxR >= MAZE_WIDTH || nyR < 0 || nyR >= MAZE_HEIGHT) break;
-                simX = (uint8_t)nxR;
-                simY = (uint8_t)nyR;
             } else if (rel == 3) {
                 rawPath[rawStepCount].cmd = CMD_CURVE_LEFT;
                 rawPath[rawStepCount].cellCount = 1;
                 rawStepCount++;
                 simHeading = (Direction)((simHeading + 3) % 4);
-                int8_t nxL = simX + DX[simHeading];
-                int8_t nyL = simY + DY[simHeading];
-                if (nxL < 0 || nxL >= MAZE_WIDTH || nyL < 0 || nyL >= MAZE_HEIGHT) break;
-                simX = (uint8_t)nxL;
-                simY = (uint8_t)nyL;
             } else {
                 rawPath[rawStepCount].cmd = CMD_PIVOT_180;
                 rawPath[rawStepCount].cellCount = 1;
@@ -474,8 +467,12 @@ uint8_t Maze::generateFastestPath(PathStep* pathOut, uint8_t maxSteps) {
         rawStepCount++;
     }
 
-    // Terapkan diagonal smoothing (mengonversi belokan zig-zag menjadi lari diagonal mulus)
-    return smoothDiagonalPath(rawPath, rawStepCount, pathOut, maxSteps);
+    // Salin jalur ortogonal murni langsung ke pathOut (hindari diagonal smoothing agar tidak membentur pasak tiang)
+    uint8_t copyCount = (rawStepCount < maxSteps) ? rawStepCount : maxSteps;
+    for (uint8_t i = 0; i < copyCount; i++) {
+        pathOut[i] = rawPath[i];
+    }
+    return copyCount;
 }
 
 // ==============================================================================

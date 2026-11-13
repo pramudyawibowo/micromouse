@@ -8,6 +8,8 @@
 #include "ui.h"
 #include "config.h"
 
+static bool isCruising = false;
+
 void Navigator::init() {
     Motors::init();
     Encoders::init();
@@ -16,6 +18,7 @@ void Navigator::init() {
 }
 
 void Navigator::emergencyStop() {
+    isCruising = false;
     Motors::brake();
     delay(50);
     Motors::disable();
@@ -41,7 +44,11 @@ bool Navigator::sprintDistance(float targetDistance, float cruiseSpeed, bool bra
     Motors::enable();
     Encoders::reset();
     IMU::update();
-    float startYaw = IMU::getYaw();
+    float rawYaw = IMU::getYaw();
+    float snappedYaw = roundf(rawYaw / 90.0f) * 90.0f;
+    float startYaw = (fabs(rawYaw - snappedYaw) < 35.0f) ? snappedYaw : rawYaw;
+    while (startYaw > 180.0f) startYaw -= 360.0f;
+    while (startYaw <= -180.0f) startYaw += 360.0f;
 
     float currentDistance = 0.0f;
     const float minSpeed = 150.0f; // STRICT FLOOR: Kecepatan tidak boleh < 150 PWM
@@ -164,10 +171,10 @@ bool Navigator::sprintDistance(float targetDistance, float cruiseSpeed, bool bra
         const float rampUpDist = 12.0f;
         const float rampDownDist = 28.0f;
 
-        if (currentDistance < rampUpDist) {
+        if (!isCruising && currentDistance < rampUpDist) {
             float s = currentDistance / rampUpDist;
             speed = minSpeed + (cruiseSpeed - minSpeed) * s;
-        } else if (brakeAtEnd) {
+        } else if (brakeAtEnd && remaining < rampDownDist) {
             float s = remaining / rampDownDist;
             // Jika ada dinding depan, bantu perlambatan halus berdasarkan jarak sensor depan menuju WALL_FRONT_STOP_ADC
             if (Sensors::hasWallFront() && irData.frontCenter > (WALL_FRONT_STOP_ADC - 250)) {
@@ -251,6 +258,9 @@ bool Navigator::sprintDistance(float targetDistance, float cruiseSpeed, bool bra
         Motors::brake();
         delay(40);
         Motors::coast();
+        isCruising = false;
+    } else {
+        isCruising = true;
     }
     return true;
 }
@@ -598,6 +608,7 @@ bool Navigator::ensureFrontWallClearance() {
 // - Berputar murni di tempat pada sumbu roda (zero backward motion) agar roda belakang aman!
 // ==============================================================================
 bool Navigator::turn90(bool turnLeft, float turnSpeed) {
+    isCruising = false;
     if (turnSpeed < 165.0f) turnSpeed = 170.0f; // Minimal 170 PWM untuk belokan pivot bertenaga
     Motors::enable();
 

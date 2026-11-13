@@ -47,12 +47,12 @@
 // SAKLAR KONTROL SERIAL MONITOR & LED1 (PA11):
 // - Set true  : Aktifkan Serial Monitor lewat kabel USB untuk debugging (COM port aktif normal)
 // - Set false : Matikan Serial Monitor; USB dilepas penuh sehingga PA11 berfungsi sebagai LED1
-#define ENABLE_SERIAL_DEBUG true
+#define ENABLE_SERIAL_DEBUG false
 
 // SAKLAR KONTROL STATUS LED (LED1 PA11 & LED2 PB3):
 // - Set true  : Aktifkan LED kanan & kiri untuk indikator visual mode dan deteksi dinding
 // - Set false : Matikan LED total; indikator mode menggunakan Buzzer (Mode 1 = 1 bip, Mode 2 = 2 bip, dst)
-#define ENABLE_LEDS        false
+#define ENABLE_LEDS        true
 
 #define PIN_LED1           PA11   // Status LED 1 (Active HIGH)
 #define PIN_LED2           PB3    // Status LED 2 (Active HIGH)
@@ -152,18 +152,18 @@
 // Wall Detection Thresholds (12-bit ADC: 0 - 4095)
 // Ambang batas kebal cahaya ruangan (Ambient Light Rejection):
 // Cahaya lampu ruangan normal (150-450 ADC) diabaikan 100%, hanya mendeteksi pantulan dinding fisik nyata (>600-800 ADC)
-#define DEFAULT_WALL_FRONT_THRESHOLD   650   // Ambang dinding depan sel saat ini (kebal gangguan cahaya/bayangan)
-#define DEFAULT_WALL_SIDE_THRESHOLD    450   // Threshold dinding samping (responsif di lorong, aman dari noise cahaya <300 ADC)
+#define DEFAULT_WALL_FRONT_THRESHOLD   800   // Ambang dinding depan sel saat ini (kebal gangguan cahaya/bayangan)
+#define DEFAULT_WALL_SIDE_THRESHOLD    600   // Threshold dinding samping (responsif di lorong, aman dari noise cahaya <300 ADC)
 
 // Ambang Presisi Jarak Dinding Depan Sebelum Berbelok (Ideal: Pas untuk radius putar tanpa mundur)
-#define WALL_FRONT_STOP_ADC            780    // Target henti sensor depan (~50-55mm dari dinding, poros roda pas di pusat sel)
-#define WALL_FRONT_TOO_CLOSE_ADC       1050   // Batas jika terlalu mepet (pengaman darurat rem)
+#define WALL_FRONT_STOP_ADC            1100    // Target henti sensor depan (~50-55mm dari dinding, poros roda pas di pusat sel)
+#define WALL_FRONT_TOO_CLOSE_ADC       1300   // Batas jika terlalu mepet (pengaman darurat rem)
 #define WALL_FRONT_TOO_FAR_ADC         500    // Batas jika berhenti terlalu jauh dari dinding depan
 
 // --- MOTION SPEEDS & TUNING CONSTANTS (STRICT FLOOR: TIDAK PERNAH < 150 PWM) ---
 // Mode 3: Scan / Exploration Mode
-#define SCAN_SPEED_FORWARD     185.0f  // PWM kecepatan maju saat scan (gesit, lincah & bertenaga)
-#define SCAN_SPEED_TURN        170.0f  // PWM belok pivot 90/180 derajat di tempat (cepat, bertenaga & anti-stall)
+#define SCAN_SPEED_FORWARD     175.0f  // PWM kecepatan maju saat scan (gesit, lincah & bertenaga)
+#define SCAN_SPEED_TURN        160.0f  // PWM belok pivot 90/180 derajat di tempat (cepat, bertenaga & anti-stall)
 
 // Mode 4: Fast Run Mode (Fokus: Jalur Tercepat, High Speed Sprint & Slalom Mengular)
 #define FAST_RUN_SPRINT_SPEED       240.0f  // PWM sprint kecepatan tinggi pada lintasan lurus multi-sel
@@ -172,8 +172,8 @@
 #define FAST_RUN_DIAG_CURVE_SPEED   175.0f  // PWM belokan kurva halus 45 derajat (masuk/keluar diagonal)
 
 // Return-to-Start Speed (Kecepatan saat kembali dari Finish ke Start (0,0))
-#define RETURN_SPEED_FORWARD        185.0f  // PWM kecepatan maju saat kembali ke Start
-#define RETURN_SPEED_TURN           170.0f  // PWM kecepatan belok saat kembali ke Start
+#define RETURN_SPEED_FORWARD        175.0f  // PWM kecepatan maju saat kembali ke Start
+#define RETURN_SPEED_TURN           160.0f  // PWM kecepatan belok saat kembali ke Start
 
 // ==============================================================================
 // CASCADED PID / PD CONTROLLER GAINS (ANTI-WOBBLE & ROTATIONAL DAMPING)

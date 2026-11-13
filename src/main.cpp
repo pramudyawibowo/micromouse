@@ -11,6 +11,10 @@
 #include "maze.h"
 #include "display.h"
 
+// Direction coordinate offsets: North, East, South, West
+static const int8_t DIR_DX[4] = {0, 1, 0, -1};
+static const int8_t DIR_DY[4] = {1, 0, -1, 0};
+
 enum OperatingMode : uint8_t {
     MODE_IDLE = 0,
     MODE_TEST_DIAGNOSTICS = 1,
@@ -239,8 +243,9 @@ void runWallFollower() {
         }
         delay(50);
     } else {
-        Navigator::moveForwardCell(SCAN_SPEED_FORWARD);
-        delay(40);
+        bool stopAtEnd = (Sensors::getFiltered().frontCenter > 550);
+        Navigator::moveForwardCell(SCAN_SPEED_FORWARD, stopAtEnd);
+        if (stopAtEnd) delay(40);
     }
 }
 
@@ -418,56 +423,104 @@ void runScanMazeStep() {
     Serial.print(Maze::getTarget() == TARGET_START ? F(" [RETURN->START] Action: ") : F(" [SCAN->GOAL] Action: "));
 
     switch (next) {
-        case ACTION_FORWARD:
+        case ACTION_FORWARD: {
             Serial.println(F("FORWARD"));
-            if (!Navigator::moveForwardCell(fwdSpeed, true)) {
+            bool stopAtEnd = true;
+            // Jika berada di dalam lorong lurus (ada dinding kiri dan kanan, lorong depan buka)
+            if (left && right && !front) {
+                int8_t nx = Maze::getX() + DIR_DX[Maze::getHeading()];
+                int8_t ny = Maze::getY() + DIR_DY[Maze::getHeading()];
+                if (nx >= 0 && nx < MAZE_WIDTH && ny >= 0 && ny < MAZE_HEIGHT) {
+                    bool isTarget = (Maze::getTarget() == TARGET_START) ? (nx == 0 && ny == 0) : Maze::isGoalCell(nx, ny);
+                    if (!isTarget && 
+                        !Maze::hasWallAt(nx, ny, Maze::getHeading()) && 
+                        Sensors::getFiltered().frontCenter < 550) {
+                        stopAtEnd = false; // Mulus meluncur tanpa henti di batas grid
+                    }
+                }
+            }
+            if (!Navigator::moveForwardCell(fwdSpeed, stopAtEnd)) {
                 running = false;
                 return;
             }
             Maze::applyAction(ACTION_FORWARD);
             break;
+        }
 
-        case ACTION_TURN_LEFT:
+        case ACTION_TURN_LEFT: {
             Serial.println(F("TURN LEFT 90 -> FORWARD"));
             if (!Navigator::turn90(true, turnSpeed)) {
                 running = false;
                 return;
             }
             Maze::applyAction(ACTION_TURN_LEFT);
-            if (!Navigator::moveForwardCell(fwdSpeed, true)) {
+            bool stopAtEnd = true;
+            Direction newH = Maze::getHeading();
+            int8_t nx = Maze::getX() + DIR_DX[newH];
+            int8_t ny = Maze::getY() + DIR_DY[newH];
+            if (nx >= 0 && nx < MAZE_WIDTH && ny >= 0 && ny < MAZE_HEIGHT) {
+                bool isTarget = (Maze::getTarget() == TARGET_START) ? (nx == 0 && ny == 0) : Maze::isGoalCell(nx, ny);
+                if (!isTarget && !Maze::hasWallAt(nx, ny, newH) && Sensors::getFiltered().frontCenter < 550) {
+                    stopAtEnd = false;
+                }
+            }
+            if (!Navigator::moveForwardCell(fwdSpeed, stopAtEnd)) {
                 running = false;
                 return;
             }
             Maze::applyAction(ACTION_FORWARD);
             break;
+        }
 
-        case ACTION_TURN_RIGHT:
+        case ACTION_TURN_RIGHT: {
             Serial.println(F("TURN RIGHT 90 -> FORWARD"));
             if (!Navigator::turn90(false, turnSpeed)) {
                 running = false;
                 return;
             }
             Maze::applyAction(ACTION_TURN_RIGHT);
-            if (!Navigator::moveForwardCell(fwdSpeed, true)) {
+            bool stopAtEnd = true;
+            Direction newH = Maze::getHeading();
+            int8_t nx = Maze::getX() + DIR_DX[newH];
+            int8_t ny = Maze::getY() + DIR_DY[newH];
+            if (nx >= 0 && nx < MAZE_WIDTH && ny >= 0 && ny < MAZE_HEIGHT) {
+                bool isTarget = (Maze::getTarget() == TARGET_START) ? (nx == 0 && ny == 0) : Maze::isGoalCell(nx, ny);
+                if (!isTarget && !Maze::hasWallAt(nx, ny, newH) && Sensors::getFiltered().frontCenter < 550) {
+                    stopAtEnd = false;
+                }
+            }
+            if (!Navigator::moveForwardCell(fwdSpeed, stopAtEnd)) {
                 running = false;
                 return;
             }
             Maze::applyAction(ACTION_FORWARD);
             break;
+        }
 
-        case ACTION_TURN_AROUND:
+        case ACTION_TURN_AROUND: {
             Serial.println(F("TURN 180 -> FORWARD"));
             if (!Navigator::turn180(turnSpeed)) {
                 running = false;
                 return;
             }
             Maze::applyAction(ACTION_TURN_AROUND);
-            if (!Navigator::moveForwardCell(fwdSpeed, true)) {
+            bool stopAtEnd = true;
+            Direction newH = Maze::getHeading();
+            int8_t nx = Maze::getX() + DIR_DX[newH];
+            int8_t ny = Maze::getY() + DIR_DY[newH];
+            if (nx >= 0 && nx < MAZE_WIDTH && ny >= 0 && ny < MAZE_HEIGHT) {
+                bool isTarget = (Maze::getTarget() == TARGET_START) ? (nx == 0 && ny == 0) : Maze::isGoalCell(nx, ny);
+                if (!isTarget && !Maze::hasWallAt(nx, ny, newH) && Sensors::getFiltered().frontCenter < 550) {
+                    stopAtEnd = false;
+                }
+            }
+            if (!Navigator::moveForwardCell(fwdSpeed, stopAtEnd)) {
                 running = false;
                 return;
             }
             Maze::applyAction(ACTION_FORWARD);
             break;
+        }
 
         case ACTION_STOP_GOAL:
             Navigator::emergencyStop();
@@ -524,11 +577,35 @@ void runFastRun() {
         diagCurveSpd  = TIER3_DIAG_CURVE_SPEED;
     }
 
+    Maze::setTarget(TARGET_GOAL);
+    Maze::updateDistances();
+    Maze::resetPosition();
+    IMU::resetYaw();
+
     PathStep path[64];
     uint8_t totalSteps = Maze::generateFastestPath(path, 64);
 
     Serial.print(F("Total Langkah Jalur Tercepat: "));
     Serial.println(totalSteps);
+
+    for (uint8_t s = 0; s < totalSteps; s++) {
+        Serial.print(F(" [Langkah "));
+        Serial.print(s + 1);
+        Serial.print(F("]: "));
+        if (path[s].cmd == CMD_SPRINT) {
+            Serial.print(F("SPRINT "));
+            Serial.print(path[s].cellCount);
+            Serial.println(F(" sel"));
+        } else if (path[s].cmd == CMD_CURVE_LEFT) {
+            Serial.println(F("PIVOT BELOK KIRI 90"));
+        } else if (path[s].cmd == CMD_CURVE_RIGHT) {
+            Serial.println(F("PIVOT BELOK KANAN 90"));
+        } else if (path[s].cmd == CMD_PIVOT_180) {
+            Serial.println(F("PIVOT 180"));
+        } else if (path[s].cmd == CMD_FINISH) {
+            Serial.println(F("FINISH / GOAL"));
+        }
+    }
 
     for (uint8_t i = 0; i < totalSteps; i++) {
         if (!running) break;
@@ -545,7 +622,7 @@ void runFastRun() {
                 Serial.print(path[i].cellCount);
                 Serial.println(F(" cells"));
                 // Kecepatan tinggi untuk sprint lurus panjang sesuai tier
-                if (!Navigator::sprintDistance(path[i].cellCount * CELL_SIZE_MM, sprintSpd)) {
+                if (!Navigator::sprintDistance(path[i].cellCount * CELL_SIZE_MM, sprintSpd, true)) {
                     running = false;
                     return;
                 }
@@ -554,9 +631,8 @@ void runFastRun() {
             case CMD_CURVE_LEFT:
                 Serial.print(F("Step "));
                 Serial.print(i + 1);
-                Serial.println(F(": MENGULAR KIRI (Slalom Curve 90 Left)"));
-                // Gerakan mengular kurva tanpa berhenti sesuai tier
-                if (!Navigator::smoothCurveTurn(true, curveSpd)) {
+                Serial.println(F(": BELOK PIVOT KIRI 90 DERAJAT"));
+                if (!Navigator::turn90(true, curveSpd)) {
                     running = false;
                     return;
                 }
@@ -565,9 +641,8 @@ void runFastRun() {
             case CMD_CURVE_RIGHT:
                 Serial.print(F("Step "));
                 Serial.print(i + 1);
-                Serial.println(F(": MENGULAR KANAN (Slalom Curve 90 Right)"));
-                // Gerakan mengular kurva tanpa berhenti sesuai tier
-                if (!Navigator::smoothCurveTurn(false, curveSpd)) {
+                Serial.println(F(": BELOK PIVOT KANAN 90 DERAJAT"));
+                if (!Navigator::turn90(false, curveSpd)) {
                     running = false;
                     return;
                 }
@@ -696,35 +771,51 @@ void returnToStartCalmly() {
         }
 
         switch (next) {
-            case ACTION_FORWARD:
-                Navigator::moveForwardCell(RETURN_SPEED_FORWARD);
+            case ACTION_FORWARD: {
+                bool stopAtEnd = true;
+                if (left && right && !front) {
+                    int8_t nx = Maze::getX() + DIR_DX[Maze::getHeading()];
+                    int8_t ny = Maze::getY() + DIR_DY[Maze::getHeading()];
+                    if (nx >= 0 && nx < MAZE_WIDTH && ny >= 0 && ny < MAZE_HEIGHT) {
+                        if (!(nx == 0 && ny == 0) && 
+                            !Maze::hasWallAt(nx, ny, Maze::getHeading()) && 
+                            Sensors::getFiltered().frontCenter < 550) {
+                            stopAtEnd = false;
+                        }
+                    }
+                }
+                Navigator::moveForwardCell(RETURN_SPEED_FORWARD, stopAtEnd);
                 Maze::applyAction(ACTION_FORWARD);
+                if (stopAtEnd) delay(30);
                 break;
+            }
             case ACTION_TURN_LEFT:
                 Navigator::turn90(true, RETURN_SPEED_TURN);
                 Maze::applyAction(ACTION_TURN_LEFT);
-                delay(40);
-                Navigator::moveForwardCell(RETURN_SPEED_FORWARD);
+                delay(30);
+                Navigator::moveForwardCell(RETURN_SPEED_FORWARD, true);
                 Maze::applyAction(ACTION_FORWARD);
+                delay(30);
                 break;
             case ACTION_TURN_RIGHT:
                 Navigator::turn90(false, RETURN_SPEED_TURN);
                 Maze::applyAction(ACTION_TURN_RIGHT);
-                delay(40);
-                Navigator::moveForwardCell(RETURN_SPEED_FORWARD);
+                delay(30);
+                Navigator::moveForwardCell(RETURN_SPEED_FORWARD, true);
                 Maze::applyAction(ACTION_FORWARD);
+                delay(30);
                 break;
             case ACTION_TURN_AROUND:
                 Navigator::turn180(RETURN_SPEED_TURN);
                 Maze::applyAction(ACTION_TURN_AROUND);
-                delay(40);
-                Navigator::moveForwardCell(RETURN_SPEED_FORWARD);
+                delay(30);
+                Navigator::moveForwardCell(RETURN_SPEED_FORWARD, true);
                 Maze::applyAction(ACTION_FORWARD);
+                delay(30);
                 break;
             default:
                 break;
         }
-        delay(40);
     }
 
     // Orientasikan robot menghadap UTARA saat tiba di kotak (0,0)
