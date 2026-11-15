@@ -149,16 +149,14 @@ bool Navigator::sprintDistance(float targetDistance, float cruiseSpeed, bool bra
         // Safety check & center-lock: jika ada dinding depan
         // HANYA aktif setelah robot menempuh minimal > 60mm agar gangguan cahaya/bayangan
         // di awal sel tidak menghentikan langkah robot secara prematur!
-        IRSensorData rawData = Sensors::getRaw();
-        uint16_t fc = (irData.frontCenter > rawData.frontCenter) ? irData.frontCenter : rawData.frontCenter;
-
+        // Gunakan irData.frontCenter (EMA filtered) agar kebal dari spike noise motor/tegangan sesaat
         if (currentDistance > 60.0f) {
-            // Berhenti tepat di titik aman sebelum dinding depan (~70-75mm, pas untuk radius putar moncong)
-            if (fc >= WALL_FRONT_STOP_ADC) {
+            // Berhenti tepat di titik aman sebelum dinding depan (~65-70mm, pas untuk radius putar moncong)
+            if (irData.frontCenter >= WALL_FRONT_STOP_ADC) {
                 break;
             }
             // Pengaman Darurat Tabrakan Depan
-            if (fc >= WALL_FRONT_TOO_CLOSE_ADC) {
+            if (irData.frontCenter >= WALL_FRONT_TOO_CLOSE_ADC) {
                 Motors::brake();
                 delay(30);
                 break;
@@ -179,8 +177,8 @@ bool Navigator::sprintDistance(float targetDistance, float cruiseSpeed, bool bra
             float sDist = (remaining < rampDownDist) ? (remaining / rampDownDist) : 1.0f;
             float sFront = 1.0f;
             // Deselerasi mulus jika mendekati dinding depan
-            if (fc > (WALL_FRONT_STOP_ADC - 200)) {
-                sFront = (float)(WALL_FRONT_STOP_ADC - fc) / 200.0f;
+            if (irData.frontCenter > (WALL_FRONT_STOP_ADC - 200)) {
+                sFront = (float)(WALL_FRONT_STOP_ADC - irData.frontCenter) / 200.0f;
                 if (sFront < 0.0f) sFront = 0.0f;
             }
             float s = (sFront < sDist) ? sFront : sDist;

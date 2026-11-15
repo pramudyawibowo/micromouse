@@ -224,8 +224,8 @@ void runWallFollower() {
         return;
     }
 
-    // Hanya berhenti & belok jika dinding depan sudah benar-benar berada di dekat moncong (~30-35mm)
-    if (Sensors::hasWallFront() && ir.frontCenter >= (WALL_FRONT_STOP_ADC - 150)) {
+    // Hanya berhenti & belok jika dinding depan sudah benar-benar terdeteksi fisik nyata
+    if (Sensors::hasWallFront() && ir.frontCenter >= DEFAULT_WALL_FRONT_THRESHOLD) {
         Navigator::emergencyStop();
         Buzzer::beep(1500, 40);
         delay(40);

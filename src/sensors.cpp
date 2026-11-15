@@ -55,18 +55,11 @@ IRSensorData Sensors::getFiltered() {
 }
 
 bool Sensors::hasWallFront() {
-    // Validasi Dinding Depan dengan Anti-Gangguan Cahaya (Cross-Sensor Confirmation):
-    // 1. Pantulan IR dinding sangat kuat pada sensor tengah (> frontThreshold, misal > 750 ADC)
-    // 2. ATAU sensor tengah > (frontThreshold - 200) DAN dikonfirmasi oleh pantulan dinding pada
-    //    salah satu sensor serong (> sideThreshold - 150), menjamin fisik dinding nyata membentang di depan!
-    if (filteredData.frontCenter > frontThreshold) {
-        return true;
-    }
-    if (filteredData.frontCenter >= (frontThreshold - 200) && 
-       (filteredData.frontLeft > (sideThreshold - 150) || filteredData.frontRight > (sideThreshold - 150))) {
-        return true;
-    }
-    return false;
+    // Dinding depan terdeteksi jika sensor tengah benar-benar membaca pantulan dinding fisik nyata.
+    // Ambang frontThreshold (650 ADC) berada aman di atas cahaya ambient/lantai (150-450 ADC).
+    // Sensor serong depan (frontLeft/frontRight) TIDAK dipakai untuk deteksi dinding depan karena
+    // sensor serong tersebut selalu membaca pantulan dinding samping saat di dalam lorong.
+    return (filteredData.frontCenter > frontThreshold);
 }
 
 bool Sensors::hasWallLeft() {
